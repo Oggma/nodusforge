@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Capabilities for the NodusForge main window",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open"]
+  "permissions": ["core:default", "dialog:allow-open", "updater:default"]
 }

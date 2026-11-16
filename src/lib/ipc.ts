@@ -19,8 +19,10 @@ export const ipc = {
 
   getAppConfig: (id: string) => invoke<string>("get_app_config", { id }),
   openUrl: (id: string) => invoke<void>("open_url", { id }),
+  openExternal: (url: string) => invoke<void>("open_external", { url }),
   openFolder: (id: string) => invoke<void>("open_folder", { id }),
   openConfig: () => invoke<void>("open_config_file"),
+  relaunch: () => invoke<void>("relaunch_app"),
 
   detect: (path: string) => invoke<DetectResult>("detect_app_folder", { path }),
   saveApp: (draft: AppDraft) => invoke<Snapshot>("save_app", { draft }),

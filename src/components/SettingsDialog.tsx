@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
 
 import { ipc } from "../lib/ipc";
+import { cn } from "../lib/format";
 import { useAppStore } from "../store/useAppStore";
+import { useUpdateStore } from "../store/useUpdateStore";
 import type { Settings } from "../lib/types";
 import { Button, Field, Modal, Toggle, inputClass } from "./ui";
 
@@ -14,9 +16,14 @@ export function SettingsDialog({
   onClose: () => void;
 }) {
   const settings = useAppStore((state) => state.settings);
+  const version = useAppStore((state) => state.version);
   const configPath = useAppStore((state) => state.configPath);
+  const settingsFocus = useAppStore((state) => state.settingsFocus);
   const updateSettings = useAppStore((state) => state.updateSettings);
   const pushToast = useAppStore((state) => state.pushToast);
+  const updateStatus = useUpdateStore((state) => state.status);
+  const checkForUpdates = useUpdateStore((state) => state.check);
+  const updatesRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState<Settings>(settings);
   const [saving, setSaving] = useState(false);
@@ -28,6 +35,17 @@ export function SettingsDialog({
       setError(null);
     }
   }, [open, settings]);
+
+  useEffect(() => {
+    if (!open || settingsFocus !== "updates") return;
+    const timer = window.setTimeout(() => {
+      updatesRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [open, settingsFocus]);
 
   const save = async () => {
     setSaving(true);
@@ -92,6 +110,63 @@ export function SettingsDialog({
           label="Persist logs to disk"
           description="Writes each app's output to ~/.local/state/nodusforge/logs, rotated at 10 MB."
         />
+
+        <div
+          ref={updatesRef}
+          className={cn(
+            "rounded-lg border bg-panel-2/40 px-3.5 py-3",
+            settingsFocus === "updates"
+              ? "border-accent/40 ring-1 ring-accent/15"
+              : "border-line",
+          )}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10.5px] font-medium uppercase tracking-[0.1em] text-muted">
+                Updates
+              </div>
+              <div className="mt-1 text-[11.5px] text-muted">
+                NodusForge{" "}
+                <code className="font-mono text-ink/85">{version || "—"}</code>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={updateStatus === "checking" || import.meta.env.DEV}
+              onClick={() => void checkForUpdates(true)}
+              title={
+                import.meta.env.DEV
+                  ? "Available in installed builds"
+                  : "Check for updates now"
+              }
+            >
+              {updateStatus === "checking" ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <RefreshCw size={12} />
+              )}
+              Check now
+            </Button>
+          </div>
+
+          <div className="mt-2.5">
+            <Toggle
+              checked={form.autoCheckUpdates}
+              onChange={(value) =>
+                setForm({ ...form, autoCheckUpdates: value })
+              }
+              label="Check for updates automatically"
+              description="Checks on startup and every 24 hours. Updates are signed; installing a .deb may ask for your administrator password."
+            />
+          </div>
+
+          {import.meta.env.DEV && (
+            <p className="mt-2 text-[10.5px] text-muted/70">
+              Update checks are available in installed builds.
+            </p>
+          )}
+        </div>
 
         <Field
           label="Log buffer"

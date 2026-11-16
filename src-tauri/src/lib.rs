@@ -27,6 +27,7 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--minimized".into()]),
         ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let handle = app.handle().clone();
             let path = config::resolve_config_path();
@@ -129,6 +130,8 @@ pub fn run() {
             commands::clear_logs,
             commands::get_app_config,
             commands::open_url,
+            commands::open_external,
+            commands::relaunch_app,
             commands::open_folder,
             commands::open_config_file,
             commands::detect_app_folder,

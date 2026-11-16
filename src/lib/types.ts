@@ -45,10 +45,12 @@ export interface Settings {
   autostart: boolean;
   logBufferLines: number;
   persistLogs: boolean;
+  autoCheckUpdates: boolean;
   theme: string;
 }
 
 export interface Snapshot {
+  version: string;
   configPath: string;
   configError?: string | null;
   warnings: string[];

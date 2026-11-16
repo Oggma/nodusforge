@@ -11,6 +11,7 @@ settings:
   autostart: false
   logBufferLines: 5000
   persistLogs: true
+  autoCheckUpdates: true
   theme: dark
 
 groups:

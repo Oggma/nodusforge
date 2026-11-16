@@ -138,6 +138,7 @@ impl AppView {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
+    pub version: String,
     pub config_path: String,
     pub config_error: Option<String>,
     pub warnings: Vec<String>,

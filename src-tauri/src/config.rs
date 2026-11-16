@@ -41,6 +41,7 @@ settings:
   autostart: false
   logBufferLines: 5000
   persistLogs: true
+  autoCheckUpdates: true
   theme: dark
 
 groups: []
@@ -54,6 +55,7 @@ pub struct Settings {
     pub autostart: bool,
     pub log_buffer_lines: usize,
     pub persist_logs: bool,
+    pub auto_check_updates: bool,
     pub theme: String,
 }
 
@@ -64,6 +66,7 @@ impl Default for Settings {
             autostart: false,
             log_buffer_lines: 5000,
             persist_logs: true,
+            auto_check_updates: true,
             theme: "dark".into(),
         }
     }

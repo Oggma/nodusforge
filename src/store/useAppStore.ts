@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS: Settings = {
   autostart: false,
   logBufferLines: 5000,
   persistLogs: true,
+  autoCheckUpdates: true,
   theme: "dark",
 };
 
@@ -37,6 +38,7 @@ interface AppStore {
   order: string[];
   groups: Group[];
   settings: Settings;
+  version: string;
   configPath: string;
   configError: string | null;
   warnings: string[];
@@ -47,6 +49,7 @@ interface AppStore {
   busy: Record<string, boolean>;
   wizardOpen: boolean;
   settingsOpen: boolean;
+  settingsFocus: "updates" | null;
 
   init: () => Promise<void>;
   select: (id: string) => void;
@@ -65,6 +68,7 @@ interface AppStore {
   dismissToast: (id: number) => void;
   setWizardOpen: (open: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
+  setSettingsFocus: (section: "updates" | null) => void;
 }
 
 let unlisteners: UnlistenFn[] = [];
@@ -92,6 +96,7 @@ function applySnapshot(
     order: snapshot.apps.map((app) => app.id),
     groups: snapshot.groups,
     settings: snapshot.settings,
+    version: snapshot.version,
     configPath: snapshot.configPath,
     configError: snapshot.configError ?? null,
     warnings: snapshot.warnings,
@@ -106,6 +111,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   order: [],
   groups: [],
   settings: DEFAULT_SETTINGS,
+  version: "",
   configPath: "",
   configError: null,
   warnings: [],
@@ -116,6 +122,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   busy: {},
   wizardOpen: false,
   settingsOpen: false,
+  settingsFocus: null,
 
   init: async () => {
     if (initStarted) return;
@@ -351,7 +358,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const snapshot = await ipc.updateSettings(settings);
     ignoreConfigUntil = Date.now() + 2000;
     applySnapshot(set, snapshot, get().selectedId);
-    set({ settingsOpen: false, configDirty: false });
+    set({ settingsOpen: false, settingsFocus: null, configDirty: false });
     get().pushToast("info", "Settings saved", "Preferences updated.");
   },
 
@@ -369,7 +376,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setWizardOpen: (open) => set({ wizardOpen: open }),
-  setSettingsOpen: (open) => set({ settingsOpen: open }),
+  setSettingsOpen: (open) =>
+    set(open ? { settingsOpen: true } : { settingsOpen: false, settingsFocus: null }),
+  setSettingsFocus: (section) => set({ settingsFocus: section }),
 }));
 
 export function disposeStoreListeners() {

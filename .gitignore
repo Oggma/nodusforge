@@ -26,3 +26,6 @@ Thumbs.db
 *.deb
 *.AppImage
 *.rpm
+
+# Local release staging
+release-assets/

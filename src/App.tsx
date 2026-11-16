@@ -16,8 +16,10 @@ import { DetailsTab } from "./components/DetailsTab";
 import { ConfigTab } from "./components/ConfigTab";
 import { AddAppWizard } from "./components/AddAppWizard";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { UpdateDialog } from "./components/UpdateDialog";
 import { ToastHost } from "./components/ToastHost";
 import { Button } from "./components/ui";
+import { useUpdateStore } from "./store/useUpdateStore";
 
 export default function App() {
   const init = useAppStore((state) => state.init);
@@ -32,6 +34,10 @@ export default function App() {
   const setWizardOpen = useAppStore((state) => state.setWizardOpen);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
   const settingsOpen = useAppStore((state) => state.settingsOpen);
+  const autoCheckUpdates = useAppStore(
+    (state) => state.settings.autoCheckUpdates,
+  );
+  const checkForUpdates = useUpdateStore((state) => state.check);
   const pushToast = useAppStore((state) => state.pushToast);
 
   const [tab, setTab] = useState<Tab>("logs");
@@ -41,6 +47,22 @@ export default function App() {
   useEffect(() => {
     void init();
   }, [init]);
+
+  useEffect(() => {
+    if (!ready || !autoCheckUpdates || import.meta.env.DEV) return;
+    const timeout = window.setTimeout(
+      () => void checkForUpdates(false),
+      5_000,
+    );
+    const interval = window.setInterval(
+      () => void checkForUpdates(false),
+      24 * 60 * 60 * 1000,
+    );
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, [ready, autoCheckUpdates, checkForUpdates]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -214,6 +236,7 @@ export default function App() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
+      <UpdateDialog />
       <ToastHost />
     </div>
   );

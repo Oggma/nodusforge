@@ -47,6 +47,8 @@ file required.
   download, a bounded in-memory buffer and optional persistence to disk.
 - **Add-app wizard** — detects .NET projects (including `launchSettings.json`
   ports) and Vite projects (npm/pnpm/yarn/bun).
+- **Automatic updates** — installed `.deb` builds check GitHub Releases, verify
+  signed packages and can install updates in-app.
 - **Tray integration** — per-app start/stop, close-to-tray and optional
   start-on-login.
 - **Native packaging** — builds a Debian package with Tauri 2.
@@ -55,7 +57,7 @@ file required.
 
 - Linux Mint 22.x / Ubuntu 24.04 (other Debian-based distributions should work)
 - Node.js 20.19+ or 22.12+ with npm
-- Rust stable (installed by the setup script if missing)
+- Rust stable (1.90+; the updater plugin requires it)
 - GTK 3 and WebKitGTK 4.1 development headers
 - Whatever the managed apps need: .NET SDK, Go, Yarn, Python, etc.
 
@@ -107,6 +109,18 @@ Bundles land in:
 src-tauri/target/release/bundle/deb/
 ```
 
+For an updater-enabled release, set the signing key first:
+
+```bash
+export TAURI_SIGNING_PRIVATE_KEY="$HOME/.tauri/myapp.key"
+# export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="..." # only if the key is encrypted
+npm run release
+```
+
+`npm run release` runs the checks, builds the signed `.deb`, and verifies that
+the `.deb.sig` exists. Then create `release-assets/v<version>/RELEASE_NOTES.md`
+and run `npm run release:manifest` to generate `latest.json`.
+
 Install:
 
 ```bash
@@ -139,6 +153,7 @@ settings:
   autostart: false
   logBufferLines: 5000
   persistLogs: true
+  autoCheckUpdates: true
 
 groups:
   - { id: backend, name: Backend }
@@ -240,6 +255,14 @@ include:
   YAML entry.
 - **Tray** — closing the window hides it to the tray by default; quit from the
   tray menu to stop all managed processes.
+- **Updates** — **Settings → Updates** has **Check now** and the automatic-check
+  toggle. When a new version is available, the dialog offers **Update now**,
+  **Later**, **View release**, and a link to disable automatic checks. Installing
+  the `.deb` may ask for your administrator password; managed apps stop and
+  NodusForge restarts.
+
+NodusForge 0.2.0 is the first updater-enabled release, so users on 0.1.1 must
+install 0.2.0 manually once. Later releases can be delivered in-app.
 
 Keyboard shortcuts:
 
@@ -339,6 +362,13 @@ interactive login-shell environment (including nvm/pyenv) before starting apps.
 Restart NodusForge after changing `~/.bashrc`, and confirm the tool is available
 in `bash -lic 'command -v yarn'`.
 
+**Update check fails or the update will not install** — 0.2.0 is the first
+updater-enabled release, so 0.1.1 must install it manually once. The latest
+GitHub release must contain `latest.json` and a signed `.deb` (`.sig`); dev
+builds skip automatic checks. Installing the `.deb` may ask for your
+administrator password. If the check still fails, confirm the release is marked
+**Latest**, not a draft or pre-release.
+
 **Port already in use** — NodusForge refuses to start a `tcp`-checked app when
 the port is bound and reports the holding process. Free the port or change the
 health `port`.
@@ -351,5 +381,7 @@ often lack tray integration, so prefer the `.deb`.
 - No PTY: apps use piped stdio. Interactive prompts are unsupported.
 - HTTPS health checks fall back to a TCP reachability probe.
 - Saving from the UI re-serializes the YAML file and drops comments.
+- In-app updates are available for installed `.deb` builds; 0.1.1 users must
+  install 0.2.0 manually once.
 - Linux only for now.
 - No auto-restart policy or container orchestration.

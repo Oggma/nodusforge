@@ -85,6 +85,26 @@ pub fn open_url(state: State<'_, AppState>, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_external(url: String) -> Result<(), String> {
+    let url = url.trim();
+    let lower = url.to_ascii_lowercase();
+    if !(lower.starts_with("http://") || lower.starts_with("https://")) {
+        return Err("only http:// and https:// URLs are supported".into());
+    }
+    xdg_open(url)
+}
+
+#[tauri::command]
+pub fn relaunch_app(app: AppHandle, state: State<'_, AppState>) {
+    let state = state.inner().clone();
+    state
+        .quitting
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    state.manager.shutdown_blocking();
+    app.restart();
+}
+
+#[tauri::command]
 pub fn open_folder(state: State<'_, AppState>, id: String) -> Result<(), String> {
     let app = state
         .app(&id)
