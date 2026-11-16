@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+src-tauri/target/
+src-tauri/gen/
+*.local
+.vite/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+nodusforge.yaml
+*.log
+
+# Editors and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Packaged bundles
+*.deb
+*.AppImage
+*.rpm

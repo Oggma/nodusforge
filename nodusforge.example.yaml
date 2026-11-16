@@ -1,0 +1,65 @@
+# NodusForge example configuration.
+#
+# Copy this file to ~/.config/nodusforge/config.yaml, or start NodusForge and
+# use "+ Add app" to generate entries. Paths support ~ and $VARS; commands run
+# through /bin/bash -lc with `cwd` as the working directory.
+
+version: 1
+
+settings:
+  closeToTray: true
+  autostart: false
+  logBufferLines: 5000
+  persistLogs: true
+  theme: dark
+
+groups:
+  - { id: backend, name: Backend }
+  - { id: frontend, name: Frontend }
+  - { id: examples, name: Examples }
+
+apps:
+  - id: api
+    name: API
+    group: backend
+    cwd: ~/Projects/example-api
+    command: dotnet run --project src/Api
+    envFile: .env
+    url: http://localhost:5080
+    health: { type: tcp, port: 5080, timeoutMs: 180000 }
+    stopSignal: SIGINT
+    stopTimeoutMs: 15000
+
+  - id: worker
+    name: Worker
+    group: backend
+    cwd: ~/Projects/example-worker
+    command: go run .
+    health: { type: none }
+    stopSignal: SIGINT
+    stopTimeoutMs: 15000
+
+  - id: web
+    name: Web
+    group: frontend
+    cwd: ~/Projects/example-web
+    command: yarn dev
+    envFile: .env
+    url: http://localhost:5173
+    health: { type: tcp, port: 5173, timeoutMs: 120000 }
+    dependsOn: [api]
+    stopSignal: SIGTERM
+    stopTimeoutMs: 10000
+
+  # Runnable demo: no port, no dependencies. Prints colored logs every second.
+  # The relative cwd resolves from the directory NodusForge is launched in, so
+  # run `npm run desktop` from the repo root or use an absolute path.
+  - id: simple-logger
+    name: Simple Logger
+    group: examples
+    cwd: ./examples/simple-logger
+    command: node app.mjs
+    health: { type: none }
+    stopSignal: SIGTERM
+    stopTimeoutMs: 3000
+
