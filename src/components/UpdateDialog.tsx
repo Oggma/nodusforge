@@ -1,5 +1,6 @@
 import { Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 
+import { useAppStore } from "../store/useAppStore";
 import { useUpdateStore } from "../store/useUpdateStore";
 import { Button, Modal } from "./ui";
 
@@ -16,6 +17,7 @@ function formatDate(value?: string): string | null {
 }
 
 export function UpdateDialog() {
+  const platform = useAppStore((state) => state.platform);
   const open = useUpdateStore((state) => state.open);
   const status = useUpdateStore((state) => state.status);
   const info = useUpdateStore((state) => state.info);
@@ -114,9 +116,23 @@ export function UpdateDialog() {
         )}
 
         <div className="rounded-lg border border-amber/25 bg-amber/10 px-3.5 py-3 text-[11.5px] leading-relaxed text-amber/90">
-          Updating stops all managed apps and restarts NodusForge. On Linux, the
-          system may ask for your administrator password to install the{" "}
-          <span className="font-mono">.deb</span> package.
+          {platform === "linux" ? (
+            <>
+              Updating stops all managed apps and restarts NodusForge. The
+              system may ask for your administrator password to install the{" "}
+              <span className="font-mono">.deb</span> package.
+            </>
+          ) : platform === "windows" ? (
+            <>
+              Updating stops all managed apps, closes NodusForge and installs the
+              new version. Windows may ask you to allow the installer.
+            </>
+          ) : (
+            <>
+              Updating stops all managed apps, replaces the app and restarts
+              NodusForge. macOS may ask for permission.
+            </>
+          )}
         </div>
 
         {(status === "downloading" || status === "installing") && (

@@ -25,6 +25,7 @@ export function SettingsDialog({
 }) {
   const settings = useAppStore((state) => state.settings);
   const version = useAppStore((state) => state.version);
+  const platform = useAppStore((state) => state.platform);
   const configPath = useAppStore((state) => state.configPath);
   const settingsFocus = useAppStore((state) => state.settingsFocus);
   const updateSettings = useAppStore((state) => state.updateSettings);
@@ -160,7 +161,13 @@ export function SettingsDialog({
           checked={form.persistLogs}
           onChange={(value) => setForm({ ...form, persistLogs: value })}
           label="Persist logs to disk"
-          description="Writes each app's output to ~/.local/state/nodusforge/logs, rotated at 10 MB."
+          description={
+            platform === "linux"
+              ? "Writes each app's output to ~/.local/state/nodusforge/logs, rotated at 10 MB."
+              : platform === "windows"
+                ? "Writes each app's output to %LOCALAPPDATA%\\nodusforge\\logs, rotated at 10 MB."
+                : "Writes each app's output to ~/Library/Application Support/nodusforge/logs, rotated at 10 MB."
+          }
         />
 
         <div
@@ -208,7 +215,13 @@ export function SettingsDialog({
                 setForm({ ...form, autoCheckUpdates: value })
               }
               label="Check for updates automatically"
-              description="Checks on startup and every 24 hours. Updates are signed; installing a .deb may ask for your administrator password."
+              description={
+                platform === "linux"
+                  ? "Checks on startup and every 24 hours. Updates are signed; installing the .deb may ask for your administrator password."
+                  : platform === "windows"
+                    ? "Checks on startup and every 24 hours. Updates are signed; Windows may ask you to allow the installer."
+                    : "Checks on startup and every 24 hours. Updates are signed; macOS may ask for permission when replacing the app."
+              }
             />
           </div>
 

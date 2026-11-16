@@ -33,6 +33,11 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         builder = builder.icon(icon.clone());
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.icon_as_template(true);
+    }
+
     builder.build(app)?;
     Ok(())
 }

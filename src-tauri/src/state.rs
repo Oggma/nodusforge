@@ -47,6 +47,7 @@ impl AppState {
 
         Snapshot {
             version: env!("CARGO_PKG_VERSION").to_string(),
+            platform: std::env::consts::OS.to_string(),
             config_path: config_path.to_string_lossy().to_string(),
             config_error,
             warnings,

@@ -7,6 +7,7 @@ import type {
   AppView,
   Group,
   LogBatch,
+  Platform,
   Settings,
   Snapshot,
   StatusEvent,
@@ -39,6 +40,7 @@ interface AppStore {
   groups: Group[];
   settings: Settings;
   version: string;
+  platform: Platform;
   configPath: string;
   configError: string | null;
   warnings: string[];
@@ -97,6 +99,7 @@ function applySnapshot(
     groups: snapshot.groups,
     settings: snapshot.settings,
     version: snapshot.version,
+    platform: snapshot.platform,
     configPath: snapshot.configPath,
     configError: snapshot.configError ?? null,
     warnings: snapshot.warnings,
@@ -112,6 +115,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   groups: [],
   settings: DEFAULT_SETTINGS,
   version: "",
+  platform: "linux",
   configPath: "",
   configError: null,
   warnings: [],

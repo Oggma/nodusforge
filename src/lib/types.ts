@@ -8,6 +8,8 @@ export type AppState =
 
 export type StopSignal = "SIGINT" | "SIGTERM";
 
+export type Platform = "linux" | "windows" | "macos";
+
 export interface Health {
   type: "none" | "tcp" | "http";
   url?: string | null;
@@ -50,6 +52,7 @@ export interface Settings {
 
 export interface Snapshot {
   version: string;
+  platform: Platform;
   configPath: string;
   configError?: string | null;
   warnings: string[];
