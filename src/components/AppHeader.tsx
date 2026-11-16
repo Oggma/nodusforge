@@ -15,6 +15,7 @@ import { useNow } from "../hooks/useNow";
 import { StatusChip } from "./StatusDot";
 import { Button } from "./ui";
 import { CopyButton } from "./CopyButton";
+import { GitBranchPicker } from "./GitBranchPicker";
 
 export type Tab = "logs" | "details" | "config";
 
@@ -153,6 +154,8 @@ export function AppHeader({
           </Button>
         </div>
       </div>
+
+      <GitBranchPicker app={app} />
 
       <div className="flex items-end gap-1 px-6">
         {TABS.map((item) => (
