@@ -11,7 +11,7 @@ pub fn get_snapshot(state: State<'_, AppState>) -> Snapshot {
     state.snapshot()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn reload_config(app: AppHandle, state: State<'_, AppState>) -> Result<Snapshot, String> {
     actions::reload(&app, state.inner())
 }
@@ -52,7 +52,7 @@ pub async fn stop_all(state: State<'_, AppState>) -> Result<(), String> {
     actions::stop_all(&state).await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_logs(state: State<'_, AppState>, id: String, tail_lines: Option<usize>) -> Vec<String> {
     let lines = tail_lines.unwrap_or(5000).clamp(1, 20_000);
     state.manager.log_tail(&id, lines)
@@ -72,13 +72,13 @@ pub fn get_app_config(state: State<'_, AppState>, id: String) -> Result<String, 
 }
 
 #[tauri::command]
-pub fn open_external(url: String) -> Result<(), String> {
-    let url = url.trim();
+pub async fn open_external(url: String) -> Result<(), String> {
+    let url = url.trim().to_string();
     let lower = url.to_ascii_lowercase();
     if !(lower.starts_with("http://") || lower.starts_with("https://")) {
         return Err("only http:// and https:// URLs are supported".into());
     }
-    open_target(url)
+    spawn_blocking("open link", move || open_target(&url)).await
 }
 
 #[tauri::command]
@@ -92,21 +92,25 @@ pub fn relaunch_app(app: AppHandle, state: State<'_, AppState>) {
 }
 
 #[tauri::command]
-pub fn open_folder(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let app = state
-        .app(&id)
-        .ok_or_else(|| format!("unknown app '{id}'"))?;
-    let cwd = config::expand_path(&app.cwd)?;
-    if !cwd.exists() {
-        return Err(format!("folder does not exist: {}", cwd.display()));
-    }
-    open_target(&cwd.to_string_lossy())
+pub async fn open_folder(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let target = {
+        let app = state
+            .app(&id)
+            .ok_or_else(|| format!("unknown app '{id}'"))?;
+        let cwd = config::expand_path(&app.cwd)?;
+        if !cwd.exists() {
+            return Err(format!("folder does not exist: {}", cwd.display()));
+        }
+        cwd.to_string_lossy().to_string()
+    };
+    spawn_blocking("open folder", move || open_target(&target)).await
 }
 
 #[tauri::command]
-pub fn open_config_file(state: State<'_, AppState>) -> Result<(), String> {
+pub async fn open_config_file(state: State<'_, AppState>) -> Result<(), String> {
     let path = state.config_path.lock().unwrap().clone();
-    open_target(&path.to_string_lossy())
+    let target = path.to_string_lossy().to_string();
+    spawn_blocking("open config", move || open_target(&target)).await
 }
 
 #[tauri::command]
@@ -171,11 +175,11 @@ pub async fn stop_container(
 }
 
 #[tauri::command]
-pub fn detect_app_folder(path: String) -> Result<DetectResult, String> {
-    detect::detect(&path)
+pub async fn detect_app_folder(path: String) -> Result<DetectResult, String> {
+    spawn_blocking("detect app folder", move || detect::detect(&path)).await
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_app(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -203,7 +207,7 @@ pub fn save_app(
     actions::reload(&app, state.inner())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn update_settings(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -220,4 +224,20 @@ pub fn update_settings(
 
 fn open_target(target: &str) -> Result<(), String> {
     open::that_detached(target).map_err(|error| format!("cannot open '{target}': {error}"))
+}
+
+async fn spawn_blocking<T, F>(label: &'static str, task: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    let started = std::time::Instant::now();
+    let result = tauri::async_runtime::spawn_blocking(task)
+        .await
+        .map_err(|error| format!("{label} task failed: {error}"))?;
+    crate::diagnostics::log(format!(
+        "{label} completed in {} ms",
+        started.elapsed().as_millis()
+    ));
+    result
 }

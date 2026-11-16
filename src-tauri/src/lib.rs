@@ -2,6 +2,7 @@ mod actions;
 mod commands;
 mod config;
 mod detect;
+mod diagnostics;
 mod docker;
 mod events;
 mod git;
@@ -35,6 +36,12 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let handle = app.handle().clone();
+            diagnostics::log(format!(
+                "NodusForge {} starting on {}",
+                env!("CARGO_PKG_VERSION"),
+                std::env::consts::OS
+            ));
+            diagnostics::start_main_thread_watchdog(handle.clone());
             let path = config::resolve_config_path();
             let _ = config::ensure_config(&path);
 
@@ -82,8 +89,18 @@ pub fn run() {
 
                 let window_for_event = window.clone();
                 let handle_for_event = handle.clone();
-                window.on_window_event(move |event| {
-                    if let WindowEvent::CloseRequested { api, .. } = event {
+                window.on_window_event(move |event| match event {
+                    WindowEvent::Focused(focused) => {
+                        diagnostics::log(format!("window focused={focused}"));
+                    }
+                    WindowEvent::Resized(size) => {
+                        diagnostics::log(format!(
+                            "window resized={}x{}",
+                            size.width, size.height
+                        ));
+                    }
+                    WindowEvent::CloseRequested { api, .. } => {
+                        diagnostics::log("window close requested");
                         let state = handle_for_event.state::<AppState>();
                         let close_to_tray =
                             state.config.read().unwrap().settings.close_to_tray;
@@ -92,6 +109,7 @@ pub fn run() {
                             let _ = window_for_event.hide();
                         }
                     }
+                    _ => {}
                 });
             }
 

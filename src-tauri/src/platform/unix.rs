@@ -5,6 +5,8 @@ use std::path::Path;
 use std::process::{Command as StdCommand, Stdio};
 use std::time::{Duration, Instant};
 
+use std::os::unix::process::CommandExt;
+
 use nix::sys::signal::{killpg, Signal};
 use nix::unistd::Pid;
 use tokio::process::Command;
@@ -194,38 +196,54 @@ fn run_shell(shell: &str, script: &str) -> Option<(bool, Vec<u8>)> {
 }
 
 fn run_with_timeout(mut command: StdCommand, timeout: Duration) -> Option<(bool, Vec<u8>)> {
+    // Run the shell in its own process group so a timeout also stops children
+    // that keep stdout open. Without this, joining the reader thread can hang
+    // for as long as a background child lives.
+    command.process_group(0);
     let mut child = command.spawn().ok()?;
+    let pid = child.id();
     let mut stdout = child.stdout.take()?;
-    let reader = std::thread::spawn(move || {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
         let mut buffer = Vec::new();
         let _ = stdout.read_to_end(&mut buffer);
-        buffer
+        let _ = tx.send(buffer);
     });
 
     let deadline = Instant::now() + timeout;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                let output = reader.join().ok()?;
+                let output = match rx.recv_timeout(Duration::from_secs(1)) {
+                    Ok(output) => output,
+                    Err(_) => {
+                        kill_process_group(pid);
+                        return None;
+                    }
+                };
                 return Some((status.success(), output));
             }
             Ok(None) => {
                 if Instant::now() >= deadline {
+                    kill_process_group(pid);
                     let _ = child.kill();
                     let _ = child.wait();
-                    let _ = reader.join();
                     return None;
                 }
                 std::thread::sleep(Duration::from_millis(20));
             }
             Err(_) => {
+                kill_process_group(pid);
                 let _ = child.kill();
                 let _ = child.wait();
-                let _ = reader.join();
                 return None;
             }
         }
     }
+}
+
+fn kill_process_group(pid: u32) {
+    let _ = killpg(Pid::from_raw(pid as i32), Signal::SIGKILL);
 }
 
 fn parse_nul_env(output: &[u8]) -> Option<HashMap<String, String>> {

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::process::Stdio;
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tokio::process::Command;
@@ -15,7 +15,7 @@ use tokio::process::Command;
 /// for managed processes and optional tools.
 #[derive(Clone)]
 pub struct ToolRuntime {
-    env: Arc<HashMap<String, String>>,
+    env: Arc<RwLock<HashMap<String, String>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,21 +45,38 @@ impl ToolOutput {
 
 impl ToolRuntime {
     pub fn new() -> Self {
-        Self {
-            env: Arc::new(crate::platform::base_env()),
-        }
+        let env = Arc::new(RwLock::new(HashMap::new()));
+        let slot = env.clone();
+        std::thread::spawn(move || {
+            let started = Instant::now();
+            let resolved = crate::platform::base_env();
+            crate::diagnostics::log(format!(
+                "login-shell environment resolved ({} vars) in {} ms",
+                resolved.len(),
+                started.elapsed().as_millis()
+            ));
+            if let Ok(mut current) = slot.write() {
+                *current = resolved;
+            }
+        });
+        Self { env }
     }
 
-    pub fn base_env(&self) -> &HashMap<String, String> {
-        &self.env
+    pub fn base_env(&self) -> HashMap<String, String> {
+        self.env
+            .read()
+            .map(|env| env.clone())
+            .unwrap_or_default()
     }
 
     /// Build a command with the login-shell environment and non-interactive
     /// stdio. Callers can add tool-specific environment overrides.
     pub fn command(&self, program: &str) -> Command {
         let mut command = Command::new(program);
-        for (key, value) in self.env.iter() {
-            command.env(key, value);
+        if let Ok(env) = self.env.read() {
+            for (key, value) in env.iter() {
+                command.env(key, value);
+            }
         }
         command
             .stdin(Stdio::null())
@@ -91,15 +108,23 @@ impl ToolRuntime {
         timeout: Duration,
         label: &str,
     ) -> Result<ToolOutput, String> {
-        let output = tokio::time::timeout(timeout, command.output())
-            .await
-            .map_err(|_| {
-                format!(
+        let started = Instant::now();
+        let result = tokio::time::timeout(timeout, command.output()).await;
+        crate::diagnostics::log(format!(
+            "{label} completed in {} ms",
+            started.elapsed().as_millis()
+        ));
+
+        let output = match result {
+            Ok(Ok(output)) => output,
+            Ok(Err(error)) => return Err(format!("cannot run {label}: {error}")),
+            Err(_) => {
+                return Err(format!(
                     "{label} timed out after {}s",
                     timeout.as_secs_f32().ceil() as u64
-                )
-            })?
-            .map_err(|error| format!("cannot run {label}: {error}"))?;
+                ))
+            }
+        };
 
         Ok(ToolOutput {
             success: output.status.success(),
