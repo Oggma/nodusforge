@@ -515,13 +515,39 @@ may need an AppIndicator extension; Cinnamon supports it natively.
 the installer through SmartScreen. Per-user NSIS installation avoids the
 administrator prompt.
 
-**macOS says the app is damaged or cannot be opened** — builds are unsigned and
-not notarized. Allow the app in **System Settings → Privacy & Security**, or
-remove the quarantine flag:
+**macOS says “NodusForge cannot be opened” or the app is damaged** — the macOS
+build is unsigned and not notarized, so Gatekeeper is blocking it. The Tauri
+updater signature does not satisfy Gatekeeper.
+
+Try:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/NodusForge.app
+sudo xattr -dr com.apple.quarantine /Applications/NodusForge.app
+open /Applications/NodusForge.app
 ```
+
+Alternatively:
+
+1. Try opening the app once.
+2. Go to **System Settings → Privacy & Security**.
+3. Use **Open Anyway** for NodusForge.
+
+Confirm you installed the Apple Silicon build, for example:
+
+```text
+NodusForge_<version>_aarch64.dmg
+```
+
+If it still fails, inspect the signature:
+
+```bash
+codesign -dv --verbose=4 /Applications/NodusForge.app
+spctl -a -vvv -t exec /Applications/NodusForge.app
+```
+
+If macOS says the app is “damaged,” re-download it and remove quarantine again.
+A permanent fix requires Apple Developer ID signing and notarization; until
+then, macOS builds are test-only.
 
 ## Limitations
 
