@@ -56,6 +56,7 @@ if [ -f "$HOME/.cargo/env" ] && ! grep -q 'cargo/env' "$PROFILE" 2>/dev/null; th
 fi
 
 echo "==> Done. Next (from the NodusForge repo root):"
-echo "    npm install"
+echo "    npm ci"
 echo "    npm run desktop        # loads ~/.cargo/env, then runs tauri dev"
 echo "    # or: source \"\$HOME/.cargo/env\" && npm run tauri dev"
+echo "    npm run build:app      # build the unsigned Linux .deb"

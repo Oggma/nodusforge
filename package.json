@@ -9,8 +9,12 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "desktop": "bash scripts/dev.sh",
-    "release": "bash scripts/release.sh",
-    "release:manifest": "node scripts/make-latest-json.mjs",
+    "build:app": "node scripts/build.mjs",
+    "setup:macos": "bash scripts/setup-macos.sh",
+    "setup:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
+    "release:sign": "node scripts/sign.mjs",
+    "release:stage": "node scripts/release.mjs",
+    "release:publish": "node scripts/release.mjs --publish",
     "tauri": "tauri"
   },
   "dependencies": {
