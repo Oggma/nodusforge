@@ -249,9 +249,13 @@ pub fn ensure_config(path: &Path) -> Result<(), String> {
 }
 
 pub fn state_dir() -> PathBuf {
-    dirs::state_dir()
-        .or_else(|| dirs::home_dir().map(|h| h.join(".local/state")))
-        .unwrap_or_else(|| PathBuf::from("."))
+    let base = if cfg!(target_os = "linux") {
+        dirs::state_dir().or_else(|| dirs::home_dir().map(|h| h.join(".local/state")))
+    } else {
+        dirs::data_local_dir().or_else(dirs::data_dir)
+    };
+
+    base.unwrap_or_else(|| PathBuf::from("."))
         .join("nodusforge")
 }
 
@@ -264,9 +268,41 @@ pub fn state_file() -> PathBuf {
 }
 
 pub fn expand_path(raw: &str) -> Result<PathBuf, String> {
-    let expanded = shellexpand::full(raw)
+    #[cfg(windows)]
+    let raw = expand_percent_vars(raw)?;
+    #[cfg(not(windows))]
+    let raw = raw.to_string();
+
+    let expanded = shellexpand::full(&raw)
         .map_err(|e| format!("cannot expand path '{raw}': {e}"))?;
     Ok(PathBuf::from(expanded.to_string()))
+}
+
+#[cfg(windows)]
+fn expand_percent_vars(raw: &str) -> Result<String, String> {
+    let mut output = String::new();
+    let mut rest = raw;
+
+    while let Some(start) = rest.find('%') {
+        output.push_str(&rest[..start]);
+        let tail = &rest[start + 1..];
+        let Some(end) = tail.find('%') else {
+            output.push_str(&rest[start..]);
+            return Ok(output);
+        };
+        let key = &tail[..end];
+        if key.is_empty() {
+            output.push('%');
+        } else {
+            let value = std::env::var(key)
+                .map_err(|_| format!("cannot expand environment variable '%{key}%'"))?;
+            output.push_str(&value);
+        }
+        rest = &tail[end + 1..];
+    }
+
+    output.push_str(rest);
+    Ok(output)
 }
 
 fn resolve_relative(base: &Path, raw: &str) -> Result<PathBuf, String> {
