@@ -28,6 +28,11 @@ colors intact.
 It runs processes **natively on the host** — no container runtime or Compose
 file required.
 
+> :sound: **AI assistance disclosure:** NodusForge was initially created with the help
+> of AI-assisted development tools. The author does not claim authorship of the
+> entire codebase and is disclosing this in the interest of transparency and
+> openness.
+
 ## Features
 
 - **YAML configuration** — one entry per app, optional per-repo includes.
