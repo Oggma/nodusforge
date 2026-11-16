@@ -29,20 +29,19 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "deb",
-      "appimage"
-    ],
     "icon": [
       "icons/32x32.png",
+      "icons/64x64.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/icon.png"
+      "icons/icon.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
     ],
     "category": "DeveloperTool",
     "shortDescription": "Local dev process control panel",
     "longDescription": "NodusForge starts, stops and monitors local .NET, Go and SPA development apps from one window, with live logs and YAML configuration.",
-    "createUpdaterArtifacts": true
+    "createUpdaterArtifacts": false
   },
   "plugins": {
     "updater": {
