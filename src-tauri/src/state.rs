@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use crate::config::{self, AppConfig, Config};
 use crate::events::{AppView, Snapshot};
 use crate::process::manager::ProcessManager;
+use crate::tools::ToolRuntime;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -13,6 +14,7 @@ pub struct AppState {
     pub config_error: Arc<RwLock<Option<String>>>,
     pub warnings: Arc<RwLock<Vec<String>>>,
     pub manager: Arc<ProcessManager>,
+    pub tools: ToolRuntime,
     pub quitting: Arc<AtomicBool>,
 }
 

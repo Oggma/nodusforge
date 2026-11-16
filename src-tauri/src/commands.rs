@@ -112,6 +112,67 @@ pub fn open_config_file(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn get_tools_status(
+    state: State<'_, AppState>,
+) -> Result<crate::tools::ToolsStatus, String> {
+    let tools = state.tools.clone();
+    Ok(crate::tools::status(&tools).await)
+}
+
+#[tauri::command]
+pub async fn get_git_status(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<crate::git::GitRepoStatus, String> {
+    let app = state
+        .app(&id)
+        .ok_or_else(|| format!("unknown app '{id}'"))?;
+    let cwd = config::expand_path(&app.cwd)?;
+    let tools = state.tools.clone();
+    Ok(crate::git::status(&tools, &cwd).await)
+}
+
+#[tauri::command]
+pub async fn switch_git_branch(
+    state: State<'_, AppState>,
+    id: String,
+    branch: String,
+) -> Result<crate::git::GitRepoStatus, String> {
+    let app = state
+        .app(&id)
+        .ok_or_else(|| format!("unknown app '{id}'"))?;
+    let cwd = config::expand_path(&app.cwd)?;
+    let tools = state.tools.clone();
+    crate::git::switch(&tools, &cwd, &branch).await
+}
+
+#[tauri::command]
+pub async fn list_containers(
+    state: State<'_, AppState>,
+) -> Result<crate::docker::ContainersResult, String> {
+    let tools = state.tools.clone();
+    Ok(crate::docker::list(&tools).await)
+}
+
+#[tauri::command]
+pub async fn start_container(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let tools = state.tools.clone();
+    crate::docker::start(&tools, &id).await
+}
+
+#[tauri::command]
+pub async fn stop_container(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let tools = state.tools.clone();
+    crate::docker::stop(&tools, &id).await
+}
+
+#[tauri::command]
 pub fn detect_app_folder(path: String) -> Result<DetectResult, String> {
     detect::detect(&path)
 }

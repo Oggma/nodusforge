@@ -2,9 +2,12 @@ mod actions;
 mod commands;
 mod config;
 mod detect;
+mod docker;
 mod events;
+mod git;
 mod process;
 mod state;
+mod tools;
 mod tray;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,6 +19,7 @@ use tauri::{Manager, WindowEvent};
 use crate::config::Config;
 use crate::process::manager::{reconcile_orphans, ProcessManager};
 use crate::state::AppState;
+use crate::tools::ToolRuntime;
 
 pub fn run() {
     tauri::Builder::default()
@@ -42,10 +46,12 @@ pub fn run() {
             };
             let config_ok = error.is_none();
 
+            let tools = ToolRuntime::new();
             let manager = Arc::new(ProcessManager::new(
                 handle.clone(),
                 config.settings.log_buffer_lines,
                 config.settings.persist_logs,
+                tools.clone(),
             ));
 
             let state = AppState {
@@ -54,6 +60,7 @@ pub fn run() {
                 config_error: Arc::new(RwLock::new(error)),
                 warnings: Arc::new(RwLock::new(warnings)),
                 manager: manager.clone(),
+                tools,
                 quitting: Arc::new(AtomicBool::new(false)),
             };
 
@@ -136,6 +143,12 @@ pub fn run() {
             commands::detect_app_folder,
             commands::save_app,
             commands::update_settings,
+            commands::get_tools_status,
+            commands::get_git_status,
+            commands::switch_git_branch,
+            commands::list_containers,
+            commands::start_container,
+            commands::stop_container,
         ])
         .build(tauri::generate_context!())
         .expect("error while building NodusForge")
