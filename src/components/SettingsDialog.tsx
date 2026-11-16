@@ -1,11 +1,19 @@
-import { useEffect, useRef, useState } from "react";
-import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Container,
+  ExternalLink,
+  GitBranch,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 
 import { ipc } from "../lib/ipc";
 import { cn } from "../lib/format";
 import { useAppStore } from "../store/useAppStore";
 import { useUpdateStore } from "../store/useUpdateStore";
-import type { Settings } from "../lib/types";
+import type { Settings, ToolsStatus } from "../lib/types";
 import { Button, Field, Modal, Toggle, inputClass } from "./ui";
 
 export function SettingsDialog({
@@ -28,6 +36,9 @@ export function SettingsDialog({
   const [form, setForm] = useState<Settings>(settings);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tools, setTools] = useState<ToolsStatus | null>(null);
+  const [toolsLoading, setToolsLoading] = useState(false);
+  const [toolsError, setToolsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -35,6 +46,39 @@ export function SettingsDialog({
       setError(null);
     }
   }, [open, settings]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setToolsLoading(true);
+    setToolsError(null);
+    ipc
+      .toolsStatus()
+      .then((status) => {
+        if (!cancelled) setTools(status);
+      })
+      .catch((reason) => {
+        if (!cancelled) setToolsError(String(reason));
+      })
+      .finally(() => {
+        if (!cancelled) setToolsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const refreshTools = async () => {
+    setToolsLoading(true);
+    setToolsError(null);
+    try {
+      setTools(await ipc.toolsStatus());
+    } catch (reason) {
+      setToolsError(String(reason));
+    } finally {
+      setToolsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!open || settingsFocus !== "updates") return;
@@ -210,6 +254,86 @@ export function SettingsDialog({
         </div>
 
         <div className="rounded-lg border border-line bg-panel-2/40 px-3.5 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10.5px] font-medium uppercase tracking-[0.1em] text-muted">
+                Tools
+              </div>
+              <div className="mt-1 text-[11px] text-muted">
+                Optional Git and Docker integrations
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={toolsLoading}
+              onClick={() => void refreshTools()}
+            >
+              {toolsLoading ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <RefreshCw size={12} />
+              )}
+              Refresh
+            </Button>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {!tools && toolsLoading && (
+              <p className="text-[11.5px] text-muted">Checking installed tools…</p>
+            )}
+            {!tools && !toolsLoading && toolsError && (
+              <p className="rounded-md border border-danger/25 bg-danger/10 px-2.5 py-2 text-[11px] text-danger">
+                Could not read tool status: {toolsError}
+              </p>
+            )}
+            {tools && (
+              <>
+                <ToolRow
+                  icon={<GitBranch size={13} />}
+                  name="Git"
+                  ok={tools.git.installed}
+                  detail={tools.git.version ?? undefined}
+                  warning="Git is not installed. Branch switching is unavailable."
+                  error={tools.git.error ?? undefined}
+                />
+                <ToolRow
+                  icon={<Container size={13} />}
+                  name="Docker"
+                  ok={
+                    tools.docker.installed && tools.docker.daemonReachable
+                  }
+                  detail={
+                    tools.docker.installed
+                      ? [
+                          tools.docker.version,
+                          tools.docker.daemonReachable &&
+                          tools.docker.daemonVersion
+                            ? `daemon ${tools.docker.daemonVersion}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || undefined
+                      : undefined
+                  }
+                  warning={
+                    tools.docker.installed
+                      ? "Docker is installed but the daemon is not reachable."
+                      : "Docker is not installed. Container management is unavailable."
+                  }
+                  error={tools.docker.error ?? undefined}
+                />
+              </>
+            )}
+            {tools && toolsError && (
+              <p className="rounded-md border border-danger/25 bg-danger/10 px-2.5 py-2 text-[11px] text-danger">
+                Could not refresh tool status: {toolsError}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-line bg-panel-2/40 px-3.5 py-3">
           <div className="text-[10.5px] font-medium uppercase tracking-[0.1em] text-muted">
             About
           </div>
@@ -235,5 +359,57 @@ export function SettingsDialog({
         )}
       </div>
     </Modal>
+  );
+}
+
+function ToolRow({
+  icon,
+  name,
+  ok,
+  detail,
+  warning,
+  error,
+}: {
+  icon: ReactNode;
+  name: string;
+  ok: boolean;
+  detail?: string;
+  warning: string;
+  error?: string;
+}) {
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-line-soft bg-canvas/40 px-2.5 py-2">
+      <span className="mt-0.5 shrink-0 text-muted">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[11.5px] font-medium text-ink">{name}</span>
+          {detail && (
+            <span
+              className="truncate font-mono text-[10px] text-muted"
+              title={detail}
+            >
+              {detail}
+            </span>
+          )}
+        </div>
+        {!ok && (
+          <p className="mt-1 text-[10.5px] leading-relaxed text-amber">
+            {warning}
+          </p>
+        )}
+        {!ok && error && (
+          <p className="mt-0.5 break-words font-mono text-[10px] leading-relaxed text-muted/80">
+            {error}
+          </p>
+        )}
+      </div>
+      <span className="mt-0.5 shrink-0">
+        {ok ? (
+          <CheckCircle2 size={13} className="text-accent" />
+        ) : (
+          <AlertTriangle size={13} className="text-amber" />
+        )}
+      </span>
+    </div>
   );
 }
