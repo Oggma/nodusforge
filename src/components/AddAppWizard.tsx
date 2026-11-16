@@ -226,7 +226,7 @@ export function AddAppWizard() {
       dependsOn: form.dependsOn,
       autoStart: false,
       stopSignal: "SIGTERM",
-      stopTimeoutMs: 10_000,
+      stopTimeoutMs: candidate?.kind === "compose" ? 60_000 : 10_000,
     };
 
     setSaving(true);
@@ -339,6 +339,10 @@ export function AddAppWizard() {
               <Sparkles size={12} className="text-accent" /> What gets detected
             </div>
             <ul className="space-y-1">
+              <li>
+                <span className="text-ink/80">Docker Compose</span> — compose.yaml
+                or docker-compose.yml, using <code className="font-mono">docker compose up</code>.
+              </li>
               <li>
                 <span className="text-ink/80">.NET</span> — .sln/.csproj, with the
                 first http port from <code className="font-mono">launchSettings.json</code>.
