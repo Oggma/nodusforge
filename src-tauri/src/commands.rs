@@ -1,5 +1,3 @@
-use std::process::Stdio;
-
 use tauri::{AppHandle, State};
 
 use crate::actions;
@@ -80,7 +78,7 @@ pub fn open_external(url: String) -> Result<(), String> {
     if !(lower.starts_with("http://") || lower.starts_with("https://")) {
         return Err("only http:// and https:// URLs are supported".into());
     }
-    xdg_open(url)
+    open_target(url)
 }
 
 #[tauri::command]
@@ -102,13 +100,13 @@ pub fn open_folder(state: State<'_, AppState>, id: String) -> Result<(), String>
     if !cwd.exists() {
         return Err(format!("folder does not exist: {}", cwd.display()));
     }
-    xdg_open(&cwd.to_string_lossy())
+    open_target(&cwd.to_string_lossy())
 }
 
 #[tauri::command]
 pub fn open_config_file(state: State<'_, AppState>) -> Result<(), String> {
     let path = state.config_path.lock().unwrap().clone();
-    xdg_open(&path.to_string_lossy())
+    open_target(&path.to_string_lossy())
 }
 
 #[tauri::command]
@@ -220,13 +218,6 @@ pub fn update_settings(
     actions::reload(&app, state.inner())
 }
 
-fn xdg_open(target: &str) -> Result<(), String> {
-    std::process::Command::new("xdg-open")
-        .arg(target)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map(|_| ())
-        .map_err(|error| format!("cannot open '{target}': {error}"))
+fn open_target(target: &str) -> Result<(), String> {
+    open::that_detached(target).map_err(|error| format!("cannot open '{target}': {error}"))
 }
