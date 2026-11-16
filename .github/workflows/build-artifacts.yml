@@ -47,10 +47,14 @@ jobs:
             libxdo-dev
       - run: npm ci
       - run: npm run build:app
+      - name: Normalize artifacts
+        run: |
+          mkdir -p artifacts/linux
+          cp -a release-assets/v*/platforms/linux/. artifacts/linux/
       - uses: actions/upload-artifact@v4
         with:
           name: linux
-          path: release-assets/v*/platforms/linux/
+          path: artifacts/linux/
           if-no-files-found: error
 
   windows:
@@ -67,10 +71,15 @@ jobs:
           targets: x86_64-pc-windows-msvc
       - run: npm ci
       - run: npm run build:app
+      - name: Normalize artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/windows | Out-Null
+          Copy-Item release-assets\v*\platforms\windows\* artifacts\windows -Recurse
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: release-assets/v*/platforms/windows/
+          path: artifacts/windows/
           if-no-files-found: error
 
   macos:
@@ -87,8 +96,12 @@ jobs:
         run: test "$(uname -m)" = "arm64"
       - run: npm ci
       - run: npm run build:app
+      - name: Normalize artifacts
+        run: |
+          mkdir -p artifacts/macos
+          cp -a release-assets/v*/platforms/macos/. artifacts/macos/
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: release-assets/v*/platforms/macos/
+          path: artifacts/macos/
           if-no-files-found: error
