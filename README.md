@@ -47,6 +47,13 @@ file required.
   download, a bounded in-memory buffer and optional persistence to disk.
 - **Add-app wizard** — detects .NET projects (including `launchSettings.json`
   ports) and Vite projects (npm/pnpm/yarn/bun).
+- **Git branch switching** — the app header shows a branch picker when the app
+  folder belongs to a Git repository. Git remains optional.
+- **Docker containers** — an optional Containers view lists local containers,
+  shows details and supports start/stop. Compose containers appear as ordinary
+  containers.
+- **ActivityBar** — switch between Apps, Containers and Settings from a compact
+  left rail.
 - **Automatic updates** — installed `.deb` builds check GitHub Releases, verify
   signed packages and can install updates in-app.
 - **Tray integration** — Show/Quit menu, close-to-tray and optional
@@ -60,6 +67,8 @@ file required.
 - Rust stable (1.90+; the updater plugin requires it)
 - GTK 3 and WebKitGTK 4.1 development headers
 - Whatever the managed apps need: .NET SDK, Go, Yarn, Python, etc.
+- Optional: `git` for the branch picker and `docker` with a reachable daemon
+  for the Containers view. Missing tools disable only those features.
 
 The one-time setup script installs the system packages and Rust:
 
@@ -242,6 +251,8 @@ include:
 
 ## Using NodusForge
 
+- **ActivityBar** — the left rail switches between **Apps**, **Containers** and
+  **Settings**. App and container selections are independent.
 - **Start / Stop** — header button, sidebar hover action, or `Ctrl+Enter`.
 - **Start all / Stop all** — sidebar footer; respects `dependsOn` (dependents
   stop first).
@@ -251,10 +262,19 @@ include:
   toolbar can copy or download the buffer.
 - **Details / Config** — inspect PID, exit code, health target and the effective
   YAML entry. App URLs open in the system browser.
+- **Git branches** — for a repository, use the branch control below the app
+  command. It shows the repository root and local branches, supports filtering
+  and switching, and warns you to restart a running app after a switch.
+- **Containers** — the Containers view lists all local containers, running
+  first. Select one for its state, image, ID, ports, status, creation time and
+  command; start or stop it from the row or the detail pane. The view refreshes
+  every 5 seconds while visible. Docker Compose project management, container
+  creation and image management are not included; dependencies are not started
+  automatically.
 - **Tray** — closing the window hides it to the tray by default. The tray menu
   contains **Show NodusForge** and **Quit**.
-- **About** — **Settings → About** shows the app version and a link to the
-  GitHub repository.
+- **About and tools** — **Settings** shows the app version, a GitHub link and
+  the status of the optional Git and Docker tools, with a refresh action.
 - **Updates** — **Settings → Updates** has **Check now** and the automatic-check
   toggle. When a new version is available, the dialog offers **Update now**,
   **Later**, **View release**, and a link to disable automatic checks. Installing
@@ -269,7 +289,7 @@ Keyboard shortcuts:
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+K` | Focus app search |
+| `Ctrl+K` | Focus the active search box |
 | `Ctrl+Enter` | Start/stop selected app |
 | `Ctrl+Shift+R` | Restart selected app |
 | `Ctrl+Shift+L` | Clear selected app's logs |
@@ -291,6 +311,10 @@ Keyboard shortcuts:
   `~/.local/state/nodusforge/state.json`; after a crash, NodusForge terminates
   groups whose command line still matches on the next launch.
 - Optional log files live in `~/.local/state/nodusforge/logs/`.
+- Git and Docker commands use the same imported login-shell environment, with
+  timeouts and non-interactive prompts. Repository overrides such as `GIT_DIR`
+  are cleared before Git runs; Docker respects `DOCKER_HOST` and
+  `DOCKER_CONTEXT` from that environment.
 
 ## Project structure
 
@@ -303,6 +327,9 @@ src-tauri/              Rust backend
   src/config.rs         YAML model, includes, validation, watcher
   src/process/          lifecycle, process groups, health, logs
   src/detect.rs         .NET / Vite detection for the wizard
+  src/tools.rs          login-shell environment and tool execution
+  src/git.rs            Git repository and branch operations
+  src/docker.rs         Docker container listing and start/stop
   src/tray.rs           tray menu and window toggling
 nodusforge.example.yaml Example configuration
 ```
@@ -371,6 +398,20 @@ builds skip automatic checks. Installing the `.deb` may ask for your
 administrator password. If the check still fails, confirm the release is marked
 **Latest**, not a draft or pre-release.
 
+**Branch picker is missing** — the app folder must be inside a Git work tree,
+and `git` must be reachable from the login-shell environment. Check
+**Settings → Tools**. If you installed Git after launching NodusForge, restart
+the app so the imported `PATH` is refreshed.
+
+**Branch switch fails** — Git reports the reason (a dirty working tree is the
+most common). Commit or stash your changes, then switch again. Switching applies
+to the whole repository; restart a running app to make it use the new branch.
+
+**Containers view says Docker is unavailable** — install Docker or start the
+daemon. Check **Settings → Tools** for the CLI version and daemon error. The
+current user must be allowed to talk to the Docker socket. NodusForge does not
+use `sudo` for Docker commands.
+
 **Port already in use** — NodusForge refuses to start a `tcp`-checked app when
 the port is bound and reports the holding process. Free the port or change the
 health `port`.
@@ -384,6 +425,10 @@ often lack tray integration, so prefer the `.deb`.
 - HTTPS health checks fall back to a TCP reachability probe.
 - Saving from the UI re-serializes the YAML file and drops comments.
 - In-app updates are available for installed `.deb` builds; 0.1.1 users must
-  install 0.2.0 manually once.
+  install 0.2.x manually once.
 - Linux only for now.
-- No auto-restart policy or container orchestration.
+- Git support covers branch listing and switching only. Fetch/pull/push,
+  commits and remote-branch management stay in your terminal.
+- Docker support covers listing and start/stop only. There is no Compose project
+  management, container creation, image management, logs or exec view.
+- No auto-restart policy or automatic branch-switch restart.
