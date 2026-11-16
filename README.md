@@ -278,6 +278,21 @@ apps:
     stopTimeoutMs: 10000
 ```
 
+### Compose example
+
+A Compose project can be added like any other app command:
+
+```yaml
+apps:
+  - id: local-stack
+    name: Local Stack
+    cwd: ~/Projects/example-stack
+    command: docker compose up
+    url: http://localhost:8080
+    health: { type: tcp, port: 8080, timeoutMs: 180000 }
+    stopTimeoutMs: 60000
+```
+
 A complete, copy-pasteable file lives in
 [`nodusforge.example.yaml`](nodusforge.example.yaml).
 
@@ -474,6 +489,24 @@ WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run desktop
 # or
 WEBKIT_DISABLE_COMPOSITING_MODE=1 npm run desktop
 ```
+
+For the installed Linux build, the same fallback is available as one switch:
+
+```bash
+NODUSFORGE_SOFTWARE_RENDER=1 nodusforge
+```
+
+**Need diagnostics** — set `NODUSFORGE_DEBUG=1` to log startup timing, command
+durations, window events and a main-thread watchdog to stderr:
+
+```bash
+NODUSFORGE_DEBUG=1 npm run desktop
+# installed build
+NODUSFORGE_DEBUG=1 nodusforge
+```
+
+Launch from a terminal to capture the logs; if started from the desktop, check
+`~/.xsession-errors` or the session log.
 
 **`yarn` / `node` / `dotnet` not found only in the installed app** — on Linux
 and macOS the GUI inherits a minimal desktop `PATH`. NodusForge imports the
