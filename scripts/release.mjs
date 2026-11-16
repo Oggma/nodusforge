@@ -154,14 +154,15 @@ fs.writeFileSync(
   `${JSON.stringify(manifest, null, 2)}\n`,
 );
 
-const assets = fs
+const checksummed = fs
   .readdirSync(releaseRoot)
   .filter((name) => name !== "SHA256SUMS")
   .sort();
-const checksums = assets
+const checksums = checksummed
   .map((name) => `${sha256(path.join(releaseRoot, name))}  ${name}`)
   .join("\n");
 fs.writeFileSync(path.join(releaseRoot, "SHA256SUMS"), `${checksums}\n`);
+const assets = [...checksummed, "SHA256SUMS"];
 
 console.log(`\nStaged ${tag} in ${releaseRoot}`);
 console.log(`Platforms: ${Object.keys(fragments).join(", ")}`);
