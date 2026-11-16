@@ -58,9 +58,12 @@ const conf = JSON.parse(
 );
 const version = conf.version;
 const product = conf.productName ?? "NodusForge";
+const releaseAssetsRoot = process.env.NODUSFORGE_RELEASE_ASSETS
+  ? path.resolve(process.env.NODUSFORGE_RELEASE_ASSETS)
+  : path.resolve(root, "..", "release-assets");
 const outDir = outArg
   ? path.resolve(outArg)
-  : path.join(root, "release-assets", `v${version}`, "platforms", platform);
+  : path.join(releaseAssetsRoot, `v${version}`, "platforms", platform);
 
 const baseEnv = { ...process.env };
 const cargoBin = path.join(os.homedir(), ".cargo", "bin");

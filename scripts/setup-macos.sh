@@ -70,6 +70,6 @@ Next:
   npm ci
   npm run build:app
 
-Artifacts are written to release-assets/v<version>/platforms/macos/.
+Artifacts are written to ../release-assets/v<version>/platforms/macos/ by default.
 Signing is done separately on the Linux workstation.
 EOF

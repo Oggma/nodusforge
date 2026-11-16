@@ -27,10 +27,13 @@ const conf = JSON.parse(
   fs.readFileSync(path.join(root, "src-tauri", "tauri.conf.json"), "utf8"),
 );
 const version = conf.version;
+const releaseAssetsRoot = process.env.NODUSFORGE_RELEASE_ASSETS
+  ? path.resolve(process.env.NODUSFORGE_RELEASE_ASSETS)
+  : path.resolve(root, "..", "release-assets");
 const platformsRoot = path.resolve(
   option(
     "--artifacts",
-    path.join(root, "release-assets", `v${version}`, "platforms"),
+    path.join(releaseAssetsRoot, `v${version}`, "platforms"),
   ),
 );
 

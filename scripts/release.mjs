@@ -24,16 +24,19 @@ const conf = JSON.parse(
 const version = conf.version;
 const tag = `v${version}`;
 const repo = "Oggma/nodusforge";
+const releaseAssetsRoot = process.env.NODUSFORGE_RELEASE_ASSETS
+  ? path.resolve(process.env.NODUSFORGE_RELEASE_ASSETS)
+  : path.resolve(root, "..", "release-assets");
 const platformsRoot = path.resolve(
   option(
     "--artifacts",
-    path.join(root, "release-assets", tag, "platforms"),
+    path.join(releaseAssetsRoot, tag, "platforms"),
   ),
 );
 const releaseRoot = path.resolve(
-  option("--out", path.join(root, "release-assets", tag, "release")),
+  option("--out", path.join(releaseAssetsRoot, tag, "release")),
 );
-const notesPath = path.join(root, "release-assets", tag, "RELEASE_NOTES.md");
+const notesPath = path.join(releaseAssetsRoot, tag, "RELEASE_NOTES.md");
 const publish = args.includes("--publish");
 const requiredArg = option("--require-platforms", "all");
 const required =

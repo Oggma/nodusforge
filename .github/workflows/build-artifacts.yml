@@ -17,6 +17,9 @@ on:
 permissions:
   contents: read
 
+env:
+  NODUSFORGE_RELEASE_ASSETS: ${{ github.workspace }}/release-output
+
 jobs:
   linux:
     if: ${{ inputs.platforms == 'all' || inputs.platforms == 'linux' }}
@@ -50,7 +53,7 @@ jobs:
       - name: Normalize artifacts
         run: |
           mkdir -p artifacts/linux
-          cp -a release-assets/v*/platforms/linux/. artifacts/linux/
+          cp -a release-output/v*/platforms/linux/. artifacts/linux/
       - uses: actions/upload-artifact@v4
         with:
           name: linux
@@ -75,7 +78,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts/windows | Out-Null
-          Copy-Item release-assets\v*\platforms\windows\* artifacts\windows -Recurse
+          Copy-Item release-output\v*\platforms\windows\* artifacts\windows -Recurse
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -99,7 +102,7 @@ jobs:
       - name: Normalize artifacts
         run: |
           mkdir -p artifacts/macos
-          cp -a release-assets/v*/platforms/macos/. artifacts/macos/
+          cp -a release-output/v*/platforms/macos/. artifacts/macos/
       - uses: actions/upload-artifact@v4
         with:
           name: macos

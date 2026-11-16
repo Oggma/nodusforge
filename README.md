@@ -135,11 +135,14 @@ npm run build:app
 ```
 
 `build:app` runs the checks, selects the platform bundle, builds it and copies
-the unsigned artifacts plus a manifest fragment into:
+the unsigned artifacts plus a manifest fragment into the shared release-assets
+directory next to the repository:
 
 ```
-release-assets/v<version>/platforms/<platform>/
+../release-assets/v<version>/platforms/<platform>/
 ```
+
+Override it with `NODUSFORGE_RELEASE_ASSETS=/path/to/release-assets`.
 
 Tauri cannot reliably cross-build macOS or Windows from Linux. Build on each
 target OS, a matching VM, or use the optional GitHub Actions workflow.
@@ -151,7 +154,7 @@ Run **Actions → Build artifacts → Run workflow** and choose `all`, `linux`,
 not sign, tag or publish. Download the artifacts from the run page or with:
 
 ```bash
-gh run download <run-id> -D release-assets/v<version>/platforms
+gh run download <run-id> -D ../release-assets/v<version>/platforms
 ```
 
 The workflow is optional. Local builds on the three operating systems use the
@@ -164,8 +167,8 @@ machines and GitHub Actions never receive the private key.
 
 1. Build Linux, Windows and macOS artifacts.
 2. Copy or download all platform directories into
-   `release-assets/v<version>/platforms/{linux,windows,macos}` on Linux.
-3. Create `release-assets/v<version>/RELEASE_NOTES.md`.
+   `../release-assets/v<version>/platforms/{linux,windows,macos}` on Linux.
+3. Create `../release-assets/v<version>/RELEASE_NOTES.md`.
 4. Sign the updater artifacts on Linux:
 
 ```bash
@@ -197,7 +200,7 @@ CLI and marks the release **Latest**.
 Linux:
 
 ```bash
-sudo dpkg -i release-assets/v<version>/platforms/linux/NodusForge_<version>_amd64.deb
+sudo dpkg -i ../release-assets/v<version>/platforms/linux/NodusForge_<version>_amd64.deb
 sudo apt-get -f install   # only if dependencies are missing
 ```
 
