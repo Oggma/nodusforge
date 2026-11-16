@@ -45,6 +45,7 @@ export function AppHeader({
     app.state === "running" ||
     app.state === "starting" ||
     app.state === "stopping";
+  const url = app.url;
   const canRestart =
     !busy && app.state !== "starting" && app.state !== "stopping";
 
@@ -101,11 +102,13 @@ export function AppHeader({
           <Button
             size="sm"
             variant="ghost"
-            disabled={!app.url}
-            onClick={() =>
-              void run(() => ipc.openUrl(app.id), "Could not open URL")
-            }
-            title={app.url ?? "No URL configured"}
+            disabled={!url}
+            onClick={() => {
+              if (url) {
+                void run(() => ipc.openExternal(url), "Could not open URL");
+              }
+            }}
+            title={url ?? "No URL configured"}
           >
             <ExternalLink size={13} /> Open
           </Button>

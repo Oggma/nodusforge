@@ -74,17 +74,6 @@ pub fn get_app_config(state: State<'_, AppState>, id: String) -> Result<String, 
 }
 
 #[tauri::command]
-pub fn open_url(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let app = state
-        .app(&id)
-        .ok_or_else(|| format!("unknown app '{id}'"))?;
-    let url = app
-        .url
-        .ok_or_else(|| format!("app '{id}' has no `url` configured"))?;
-    xdg_open(&url)
-}
-
-#[tauri::command]
 pub fn open_external(url: String) -> Result<(), String> {
     let url = url.trim();
     let lower = url.to_ascii_lowercase();

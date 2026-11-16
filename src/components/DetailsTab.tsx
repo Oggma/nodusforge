@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { healthLabel } from "../lib/format";
+import { ipc } from "../lib/ipc";
 import type { AppView } from "../lib/types";
 import { useAppStore } from "../store/useAppStore";
 import { CopyButton } from "./CopyButton";
@@ -8,6 +9,7 @@ import { CopyButton } from "./CopyButton";
 export function DetailsTab({ app }: { app: AppView }) {
   const apps = useAppStore((state) => state.apps);
   const groups = useAppStore((state) => state.groups);
+  const pushToast = useAppStore((state) => state.pushToast);
 
   const groupName =
     groups.find((group) => group.id === app.group)?.name ?? app.group;
@@ -15,6 +17,15 @@ export function DetailsTab({ app }: { app: AppView }) {
   const dependencies = app.dependsOn.map(
     (id) => apps[id]?.name ?? id,
   );
+
+  const openUrl = async () => {
+    if (!app.url) return;
+    try {
+      await ipc.openExternal(app.url);
+    } catch (error) {
+      pushToast("error", "Could not open URL", String(error));
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto px-6 py-4">
@@ -74,14 +85,14 @@ export function DetailsTab({ app }: { app: AppView }) {
           <Row label="URL">
             {app.url ? (
               <span className="flex min-w-0 items-center gap-1">
-                <a
-                  className="truncate font-mono text-[11.5px] text-info hover:underline"
-                  href={app.url}
-                  onClick={(event) => event.preventDefault()}
+                <button
+                  type="button"
+                  className="truncate text-left font-mono text-[11.5px] text-info hover:underline"
+                  onClick={() => void openUrl()}
                   title={app.url}
                 >
                   {app.url}
-                </a>
+                </button>
                 <CopyButton text={app.url} title="Copy URL" />
               </span>
             ) : (
@@ -104,12 +115,6 @@ export function DetailsTab({ app }: { app: AppView }) {
             ) : (
               <span className="text-muted">Nothing</span>
             )}
-          </Row>
-
-          <Row label="In tray">
-            <span className="text-muted">
-              {app.showInTray ? "Shown" : "Hidden"}
-            </span>
           </Row>
         </section>
       </div>

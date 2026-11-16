@@ -32,7 +32,6 @@ export interface AppView {
   exitCode?: number | null;
   pid?: number | null;
   startedAt?: number | null;
-  showInTray: boolean;
 }
 
 export interface Group {
@@ -110,5 +109,4 @@ export interface AppDraft {
   autoStart?: boolean;
   stopSignal?: StopSignal;
   stopTimeoutMs?: number;
-  showInTray?: boolean;
 }

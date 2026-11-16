@@ -109,7 +109,6 @@ pub struct AppView {
     pub exit_code: Option<i32>,
     pub pid: Option<u32>,
     pub started_at: Option<u64>,
-    pub show_in_tray: bool,
 }
 
 impl AppView {
@@ -130,7 +129,6 @@ impl AppView {
             exit_code: status.exit_code,
             pid: status.pid,
             started_at: status.started_at,
-            show_in_tray: app.show_in_tray,
         }
     }
 }

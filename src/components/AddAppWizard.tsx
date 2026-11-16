@@ -227,7 +227,6 @@ export function AddAppWizard() {
       autoStart: false,
       stopSignal: "SIGTERM",
       stopTimeoutMs: 10_000,
-      showInTray: true,
     };
 
     setSaving(true);

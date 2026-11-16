@@ -18,7 +18,6 @@ export const ipc = {
   clearLogs: (id: string) => invoke<void>("clear_logs", { id }),
 
   getAppConfig: (id: string) => invoke<string>("get_app_config", { id }),
-  openUrl: (id: string) => invoke<void>("open_url", { id }),
   openExternal: (url: string) => invoke<void>("open_external", { url }),
   openFolder: (id: string) => invoke<void>("open_folder", { id }),
   openConfig: () => invoke<void>("open_config_file"),

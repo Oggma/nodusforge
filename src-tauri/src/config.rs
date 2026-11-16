@@ -167,7 +167,6 @@ pub struct AppConfig {
     pub auto_start: bool,
     pub stop_signal: StopSignal,
     pub stop_timeout_ms: u64,
-    pub show_in_tray: bool,
 }
 
 impl Default for AppConfig {
@@ -186,7 +185,6 @@ impl Default for AppConfig {
             auto_start: false,
             stop_signal: StopSignal::default(),
             stop_timeout_ms: 10_000,
-            show_in_tray: true,
         }
     }
 }

@@ -73,6 +73,14 @@ export function SettingsDialog({
     }
   };
 
+  const openGitHub = async () => {
+    try {
+      await ipc.openExternal("https://github.com/Oggma/nodusforge");
+    } catch (reason) {
+      pushToast("error", "Could not open GitHub", String(reason));
+    }
+  };
+
   return (
     <Modal
       open={open}
@@ -126,8 +134,7 @@ export function SettingsDialog({
                 Updates
               </div>
               <div className="mt-1 text-[11.5px] text-muted">
-                NodusForge{" "}
-                <code className="font-mono text-ink/85">{version || "—"}</code>
+                Automatic checks and manual update
               </div>
             </div>
             <Button
@@ -198,6 +205,25 @@ export function SettingsDialog({
             </code>
             <Button size="sm" variant="ghost" onClick={() => void openConfig()}>
               <ExternalLink size={12} /> Open
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-line bg-panel-2/40 px-3.5 py-3">
+          <div className="text-[10.5px] font-medium uppercase tracking-[0.1em] text-muted">
+            About
+          </div>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-medium text-ink">
+                NodusForge {version || "—"}
+              </div>
+              <div className="mt-0.5 text-[11px] text-muted">
+                Local dev process control panel
+              </div>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => void openGitHub()}>
+              <ExternalLink size={12} /> GitHub
             </Button>
           </div>
         </div>

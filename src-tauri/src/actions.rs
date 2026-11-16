@@ -14,14 +14,6 @@ pub fn reload(app: &AppHandle, state: &AppState) -> Result<Snapshot, String> {
             state.apply_loaded(&loaded);
             let snapshot = state.snapshot();
             let _ = app.emit(EVT_SNAPSHOT, snapshot.clone());
-            if let Err(error) = crate::tray::rebuild(app) {
-                toast(
-                    app,
-                    "warning",
-                    "Tray menu",
-                    format!("Could not rebuild tray menu: {error}"),
-                );
-            }
             Ok(snapshot)
         }
         Err(error) => {

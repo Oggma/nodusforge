@@ -49,7 +49,7 @@ file required.
   ports) and Vite projects (npm/pnpm/yarn/bun).
 - **Automatic updates** — installed `.deb` builds check GitHub Releases, verify
   signed packages and can install updates in-app.
-- **Tray integration** — per-app start/stop, close-to-tray and optional
+- **Tray integration** — Show/Quit menu, close-to-tray and optional
   start-on-login.
 - **Native packaging** — builds a Debian package with Tauri 2.
 
@@ -228,7 +228,6 @@ the installed app, replace it with an absolute or `~/...` path.
 | `autoStart` | no | Start when NodusForge launches. |
 | `stopSignal` | no | `SIGTERM` (default) or `SIGINT`. |
 | `stopTimeoutMs` | no | Grace period before escalating to `SIGKILL` (default 10000). |
-| `showInTray` | no | Add Start/Stop entries to the tray menu (default true). |
 
 `health.type: tcp` waits for a connection on the port; `http` sends a GET and
 accepts any valid HTTP response. Use `none` for apps without a listening port.
@@ -243,8 +242,7 @@ include:
 
 ## Using NodusForge
 
-- **Start / Stop** — header button, sidebar hover action, tray menu, or
-  `Ctrl+Enter`.
+- **Start / Stop** — header button, sidebar hover action, or `Ctrl+Enter`.
 - **Start all / Stop all** — sidebar footer; respects `dependsOn` (dependents
   stop first).
 - **Add app** — `+` in the sidebar. Pick a folder, review the detected command
@@ -252,17 +250,20 @@ include:
 - **Logs** — `Follow` pins output to the bottom, `Ctrl+F` searches, and the
   toolbar can copy or download the buffer.
 - **Details / Config** — inspect PID, exit code, health target and the effective
-  YAML entry.
-- **Tray** — closing the window hides it to the tray by default; quit from the
-  tray menu to stop all managed processes.
+  YAML entry. App URLs open in the system browser.
+- **Tray** — closing the window hides it to the tray by default. The tray menu
+  contains **Show NodusForge** and **Quit**.
+- **About** — **Settings → About** shows the app version and a link to the
+  GitHub repository.
 - **Updates** — **Settings → Updates** has **Check now** and the automatic-check
   toggle. When a new version is available, the dialog offers **Update now**,
   **Later**, **View release**, and a link to disable automatic checks. Installing
   the `.deb` may ask for your administrator password; managed apps stop and
   NodusForge restarts.
 
-NodusForge 0.2.0 is the first updater-enabled release, so users on 0.1.1 must
-install 0.2.0 manually once. Later releases can be delivered in-app.
+Automatic updates were introduced in 0.2.0; users on 0.1.1 must install a 0.2.x
+release manually once. 0.2.1 is the first release delivered through the updater
+to 0.2.0.
 
 Keyboard shortcuts:
 
@@ -362,8 +363,9 @@ interactive login-shell environment (including nvm/pyenv) before starting apps.
 Restart NodusForge after changing `~/.bashrc`, and confirm the tool is available
 in `bash -lic 'command -v yarn'`.
 
-**Update check fails or the update will not install** — 0.2.0 is the first
-updater-enabled release, so 0.1.1 must install it manually once. The latest
+**Update check fails or the update will not install** — automatic updates were
+introduced in 0.2.0, so 0.1.1 users must install a 0.2.x release manually once.
+0.2.1 is the first update delivered through the updater to 0.2.0. The latest
 GitHub release must contain `latest.json` and a signed `.deb` (`.sig`); dev
 builds skip automatic checks. Installing the `.deb` may ask for your
 administrator password. If the check still fails, confirm the release is marked

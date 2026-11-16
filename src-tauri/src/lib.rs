@@ -129,7 +129,6 @@ pub fn run() {
             commands::get_logs,
             commands::clear_logs,
             commands::get_app_config,
-            commands::open_url,
             commands::open_external,
             commands::relaunch_app,
             commands::open_folder,

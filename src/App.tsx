@@ -49,6 +49,25 @@ export default function App() {
   }, [init]);
 
   useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href");
+      if (!href || !/^https?:\/\//i.test(href)) return;
+      event.preventDefault();
+      void ipc
+        .openExternal(href)
+        .catch((error) =>
+          pushToast("error", "Could not open link", String(error)),
+        );
+    };
+
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [pushToast]);
+
+  useEffect(() => {
     if (!ready || !autoCheckUpdates || import.meta.env.DEV) return;
     const timeout = window.setTimeout(
       () => void checkForUpdates(false),
