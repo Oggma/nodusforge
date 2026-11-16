@@ -24,10 +24,12 @@ export function GitBranchPicker({ app }: { app: AppView }) {
   const [switching, setSwitching] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const requestSeq = useRef(0);
+  const lastRefresh = useRef(0);
 
   const refresh = useCallback(
     async (announce = false) => {
       const seq = ++requestSeq.current;
+      lastRefresh.current = Date.now();
       setLoading(true);
       try {
         const status = await ipc.gitStatus(app.id);
@@ -59,7 +61,11 @@ export function GitBranchPicker({ app }: { app: AppView }) {
   }, [refresh]);
 
   useEffect(() => {
-    const onFocus = () => void refresh();
+    const onFocus = () => {
+      if (document.hidden) return;
+      if (Date.now() - lastRefresh.current < 2_000) return;
+      void refresh();
+    };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [refresh]);
