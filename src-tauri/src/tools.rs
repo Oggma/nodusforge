@@ -46,7 +46,7 @@ impl ToolOutput {
 impl ToolRuntime {
     pub fn new() -> Self {
         Self {
-            env: Arc::new(resolve_shell_env()),
+            env: Arc::new(crate::platform::base_env()),
         }
     }
 
@@ -66,6 +66,7 @@ impl ToolRuntime {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
+        crate::platform::configure_command(&mut command);
         command
     }
 
@@ -227,79 +228,4 @@ async fn docker_status(runtime: &ToolRuntime) -> DockerStatus {
             error: Some(error),
         },
     }
-}
-
-/// Desktop launches inherit the session PATH, which normally has no nvm,
-/// pyenv, sdkman or similar. Ask an interactive login shell for its
-/// environment once and use it as the base environment for managed commands.
-fn resolve_shell_env() -> HashMap<String, String> {
-    const MARKER: &[u8] = b"__NODUSFORGE_ENV__\0";
-    const SCRIPT: &str = "printf '__NODUSFORGE_ENV__\\0'; /usr/bin/env -0";
-
-    let output = std::process::Command::new("/usr/bin/timeout")
-        .args(["-s", "KILL", "5", "/bin/bash", "-lic", SCRIPT])
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output();
-
-    let Ok(output) = output else {
-        return HashMap::new();
-    };
-    if !output.status.success() {
-        return HashMap::new();
-    }
-
-    let Some(index) = output
-        .stdout
-        .windows(MARKER.len())
-        .position(|window| window == MARKER)
-    else {
-        return HashMap::new();
-    };
-
-    output.stdout[index + MARKER.len()..]
-        .split(|byte| *byte == 0)
-        .filter_map(|entry| {
-            let text = String::from_utf8_lossy(entry);
-            let (key, value) = text.split_once('=')?;
-            if !keep_shell_var(key) {
-                return None;
-            }
-            Some((key.to_string(), value.to_string()))
-        })
-        .collect()
-}
-
-fn keep_shell_var(key: &str) -> bool {
-    if key.is_empty() || key.contains("%%") || key.starts_with("BASH_FUNC_") {
-        return false;
-    }
-
-    !matches!(
-        key,
-        "PWD"
-            | "OLDPWD"
-            | "SHLVL"
-            | "_"
-            | "BASH_ENV"
-            | "ENV"
-            | "PROMPT_COMMAND"
-            | "PS1"
-            | "PS2"
-            | "PS4"
-            | "COLUMNS"
-            | "LINES"
-            | "TERM"
-            | "COLORTERM"
-            | "HISTFILE"
-            | "HISTCONTROL"
-            | "HISTIGNORE"
-            | "HISTSIZE"
-            | "HISTFILESIZE"
-            | "BASH_ARGC"
-            | "BASH_ARGV"
-            | "BASH_EXECUTION_STRING"
-            | "SHELLOPTS"
-            | "BASHOPTS"
-    )
 }

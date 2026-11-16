@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -15,6 +14,7 @@ use crate::config::{now_ms, AppConfig, Config, StopSignal};
 use crate::events::{
     State, Status, StatusEvent, Toast, EVT_STATUS, EVT_TOAST,
 };
+use crate::platform::{self, ProcessHandle};
 use crate::process::health;
 use crate::process::logs::{self, LogBuffer};
 use crate::tools::ToolRuntime;
@@ -23,7 +23,7 @@ pub struct AppRuntime {
     pub id: String,
     pub status: Mutex<Status>,
     pub log: Mutex<LogBuffer>,
-    pub pgid: AtomicI32,
+    pub process: Mutex<Option<ProcessHandle>>,
     pub generation: AtomicU64,
     pub start_lock: AsyncMutex<()>,
     pub stop_signal: Mutex<StopSignal>,
@@ -37,7 +37,7 @@ impl AppRuntime {
             id: id.to_string(),
             status: Mutex::new(Status::stopped()),
             log: Mutex::new(LogBuffer::new(capacity)),
-            pgid: AtomicI32::new(0),
+            process: Mutex::new(None),
             generation: AtomicU64::new(0),
             start_lock: AsyncMutex::new(()),
             stop_signal: Mutex::new(StopSignal::Sigterm),
@@ -127,9 +127,8 @@ impl ProcessManager {
         };
 
         for rt in extra {
-            let pgid = rt.pgid.load(Ordering::SeqCst);
-            if pgid > 0 {
-                send_signal(pgid, signal_of(*rt.stop_signal.lock().unwrap()));
+            if let Some(handle) = rt.process.lock().unwrap().as_ref() {
+                handle.request_stop(*rt.stop_signal.lock().unwrap());
             }
             self.runtimes.lock().unwrap().remove(&rt.id);
         }
@@ -186,7 +185,8 @@ impl ProcessManager {
             rt.stop_timeout_ms
                 .store(app_cfg.stop_timeout_ms.max(500), Ordering::SeqCst);
 
-            let mut command = Command::new("/bin/bash");
+            let (shell, shell_args) = platform::shell_command();
+            let mut command = Command::new(shell);
             // A desktop launch inherits the session PATH, which usually lacks
             // nvm/pyenv/sdkman. Overlay the interactive login-shell environment
             // so commands behave like they do in a terminal.
@@ -194,7 +194,7 @@ impl ProcessManager {
                 command.env(key, value);
             }
             command
-                .arg("-lc")
+                .args(&shell_args)
                 .arg(&app_cfg.command)
                 .current_dir(&cwd)
                 .stdin(Stdio::null())
@@ -208,7 +208,7 @@ impl ProcessManager {
             for (key, value) in &env {
                 command.env(key, value);
             }
-            command.as_std_mut().process_group(0);
+            platform::configure_command(&mut command);
 
             let mut child = match command.spawn() {
                 Ok(child) => child,
@@ -220,7 +220,15 @@ impl ProcessManager {
             };
 
             let pid = child.id().unwrap_or(0);
-            rt.pgid.store(pid as i32, Ordering::SeqCst);
+            let handle = match ProcessHandle::from_child(&mut child) {
+                Ok(handle) => handle,
+                Err(error) => {
+                    let _ = child.kill().await;
+                    self.set_status(&rt, failed_status(error.clone()));
+                    return Err(error);
+                }
+            };
+            *rt.process.lock().unwrap() = Some(handle);
             self.set_status(
                 &rt,
                 Status {
@@ -254,7 +262,7 @@ impl ProcessManager {
                 }
 
                 let previous = waiter_rt.status_snapshot();
-                waiter_rt.pgid.store(0, Ordering::SeqCst);
+                *waiter_rt.process.lock().unwrap() = None;
 
                 let (state, message, code) = match result {
                     Ok(exit) => {
@@ -375,7 +383,7 @@ impl ProcessManager {
                 state,
                 State::Starting | State::Running | State::Stopping
             ) {
-                rt.pgid.store(0, Ordering::SeqCst);
+                *rt.process.lock().unwrap() = None;
                 self.set_status(&rt, Status::stopped());
                 return Ok(());
             }
@@ -385,8 +393,7 @@ impl ProcessManager {
     }
 
     async fn terminate(&self, rt: &Arc<AppRuntime>) {
-        let pgid = rt.pgid.load(Ordering::SeqCst);
-        if pgid <= 0 {
+        if rt.process.lock().unwrap().is_none() {
             self.set_status(rt, Status::stopped());
             return;
         }
@@ -396,24 +403,30 @@ impl ProcessManager {
         status.message = None;
         self.set_status(rt, status);
 
-        let signal = signal_of(*rt.stop_signal.lock().unwrap());
-        send_signal(pgid, signal);
+        let signal = *rt.stop_signal.lock().unwrap();
+        if let Some(handle) = rt.process.lock().unwrap().as_ref() {
+            handle.request_stop(signal);
+        }
 
         let timeout = Duration::from_millis(rt.stop_timeout_ms.load(Ordering::SeqCst));
         if self.wait_for_exit(rt, timeout).await {
             return;
         }
 
-        send_signal(pgid, nix::sys::signal::Signal::SIGTERM);
+        if let Some(handle) = rt.process.lock().unwrap().as_ref() {
+            handle.request_stop(StopSignal::Sigterm);
+        }
         if self.wait_for_exit(rt, Duration::from_secs(3)).await {
             return;
         }
 
-        send_signal(pgid, nix::sys::signal::Signal::SIGKILL);
+        if let Some(handle) = rt.process.lock().unwrap().as_ref() {
+            handle.force_kill();
+        }
         let _ = self
             .wait_for_exit(rt, Duration::from_millis(1_500))
             .await;
-        rt.pgid.store(0, Ordering::SeqCst);
+        *rt.process.lock().unwrap() = None;
         self.set_status(
             rt,
             Status {
@@ -480,17 +493,17 @@ impl ProcessManager {
                 .values()
                 .filter_map(|rt| {
                     let status = rt.status_snapshot();
-                    let pgid = rt.pgid.load(Ordering::SeqCst);
-                    if status.is_active() && pgid > 0 {
-                        Some(Saved {
-                            id: rt.id.clone(),
-                            pid: pgid as u32,
-                            pgid,
-                            command: rt.command.lock().unwrap().clone(),
-                        })
-                    } else {
-                        None
+                    if !status.is_active() {
+                        return None;
                     }
+                    let process = rt.process.lock().unwrap();
+                    let handle = process.as_ref()?;
+                    Some(Saved {
+                        id: rt.id.clone(),
+                        pid: handle.pid(),
+                        pgid: handle.group_id(),
+                        command: rt.command.lock().unwrap().clone(),
+                    })
                 })
                 .collect()
         };
@@ -517,20 +530,18 @@ impl ProcessManager {
             self.runtimes.lock().unwrap().values().cloned().collect();
 
         for rt in &runtimes {
-            let pgid = rt.pgid.load(Ordering::SeqCst);
-            if pgid > 0 {
-                send_signal(pgid, signal_of(*rt.stop_signal.lock().unwrap()));
+            if let Some(handle) = rt.process.lock().unwrap().as_ref() {
+                handle.request_stop(*rt.stop_signal.lock().unwrap());
             }
         }
 
         std::thread::sleep(Duration::from_millis(1500));
 
         for rt in &runtimes {
-            let pgid = rt.pgid.load(Ordering::SeqCst);
-            if pgid > 0 {
-                send_signal(pgid, nix::sys::signal::Signal::SIGKILL);
-                rt.pgid.store(0, Ordering::SeqCst);
+            if let Some(handle) = rt.process.lock().unwrap().as_ref() {
+                handle.force_kill();
             }
+            *rt.process.lock().unwrap() = None;
         }
 
         let _ = std::fs::remove_file(crate::config::state_file());
@@ -545,17 +556,6 @@ fn failed_status(message: String) -> Status {
         pid: None,
         started_at: None,
     }
-}
-
-fn signal_of(signal: StopSignal) -> nix::sys::signal::Signal {
-    match signal {
-        StopSignal::Sigint => nix::sys::signal::Signal::SIGINT,
-        StopSignal::Sigterm => nix::sys::signal::Signal::SIGTERM,
-    }
-}
-
-fn send_signal(pgid: i32, signal: nix::sys::signal::Signal) {
-    let _ = nix::sys::signal::killpg(nix::unistd::Pid::from_raw(pgid), signal);
 }
 
 fn read_env_file(cwd: &Path, file: &str, env: &mut std::collections::HashMap<String, String>) {
@@ -605,11 +605,7 @@ pub fn reconcile_orphans() {
         if pgid <= 0 {
             continue;
         }
-        let cmdline = std::fs::read(format!("/proc/{pgid}/cmdline")).unwrap_or_default();
-        let joined = String::from_utf8_lossy(&cmdline).replace('\0', " ");
-        if entry.command.is_empty() || joined.contains(entry.command.trim()) {
-            send_signal(pgid, nix::sys::signal::Signal::SIGTERM);
-        }
+        platform::terminate_orphan(pgid, &entry.command);
     }
 
     let _ = std::fs::remove_file(&path);

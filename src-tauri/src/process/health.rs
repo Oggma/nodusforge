@@ -119,45 +119,7 @@ pub fn port_free(port: u16) -> bool {
 }
 
 pub fn port_holder(port: u16) -> Option<String> {
-    let output = std::process::Command::new("ss")
-        .args(["-ltnp"])
-        .output()
-        .ok()?;
-    let text = String::from_utf8_lossy(&output.stdout);
-    let needle = format!(":{port}");
-
-    for line in text.lines() {
-        if line.starts_with("State") {
-            continue;
-        }
-        let fields: Vec<&str> = line.split_whitespace().collect();
-        if fields.len() < 4 {
-            continue;
-        }
-        let local = fields[3];
-        if !local.ends_with(&needle) {
-            continue;
-        }
-
-        let process = fields.get(5).copied().unwrap_or("");
-        let pid = process
-            .split("pid=")
-            .nth(1)
-            .and_then(|rest| rest.split(',').next())
-            .and_then(|pid| pid.parse::<u32>().ok());
-
-        return Some(match pid {
-            Some(pid) => {
-                let comm = std::fs::read_to_string(format!("/proc/{pid}/comm"))
-                    .map(|s| s.trim().to_string())
-                    .unwrap_or_else(|_| "unknown".into());
-                format!("{comm} (pid {pid})")
-            }
-            None => "another process".into(),
-        });
-    }
-
-    None
+    crate::platform::port_holder(port)
 }
 
 /// Poll every 500ms until the health probe succeeds, the process leaves the

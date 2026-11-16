@@ -5,6 +5,7 @@ mod detect;
 mod docker;
 mod events;
 mod git;
+mod platform;
 mod process;
 mod state;
 mod tools;
