@@ -1,6 +1,6 @@
 [package]
 name = "nodusforge"
-version = "0.1.0"
+version = "0.1.1"
 description = "NodusForge - local dev process control panel"
 authors = ["NodusForge"]
 edition = "2021"

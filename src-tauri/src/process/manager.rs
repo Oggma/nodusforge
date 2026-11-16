@@ -67,6 +67,7 @@ pub struct ProcessManager {
     runtimes: Mutex<HashMap<String, Arc<AppRuntime>>>,
     capacity: AtomicU64,
     persist: AtomicBool,
+    shell_env: HashMap<String, String>,
 }
 
 impl ProcessManager {
@@ -76,6 +77,7 @@ impl ProcessManager {
             runtimes: Mutex::new(HashMap::new()),
             capacity: AtomicU64::new(capacity as u64),
             persist: AtomicBool::new(persist),
+            shell_env: resolve_shell_env(),
         }
     }
 
@@ -184,6 +186,12 @@ impl ProcessManager {
                 .store(app_cfg.stop_timeout_ms.max(500), Ordering::SeqCst);
 
             let mut command = Command::new("/bin/bash");
+            // A desktop launch inherits the session PATH, which usually lacks
+            // nvm/pyenv/sdkman. Overlay the interactive login-shell environment
+            // so commands behave like they do in a terminal.
+            for (key, value) in &self.shell_env {
+                command.env(key, value);
+            }
             command
                 .arg("-lc")
                 .arg(&app_cfg.command)
@@ -547,6 +555,81 @@ fn signal_of(signal: StopSignal) -> nix::sys::signal::Signal {
 
 fn send_signal(pgid: i32, signal: nix::sys::signal::Signal) {
     let _ = nix::sys::signal::killpg(nix::unistd::Pid::from_raw(pgid), signal);
+}
+
+/// Desktop launches inherit the session PATH, which normally has no nvm,
+/// pyenv, sdkman or similar. Ask an interactive login shell for its
+/// environment once and use it as the base environment for managed commands.
+fn resolve_shell_env() -> HashMap<String, String> {
+    const MARKER: &[u8] = b"__NODUSFORGE_ENV__\0";
+    const SCRIPT: &str = "printf '__NODUSFORGE_ENV__\\0'; /usr/bin/env -0";
+
+    let output = std::process::Command::new("/usr/bin/timeout")
+        .args(["-s", "KILL", "5", "/bin/bash", "-lic", SCRIPT])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output();
+
+    let Ok(output) = output else {
+        return HashMap::new();
+    };
+    if !output.status.success() {
+        return HashMap::new();
+    }
+
+    let Some(index) = output
+        .stdout
+        .windows(MARKER.len())
+        .position(|window| window == MARKER)
+    else {
+        return HashMap::new();
+    };
+
+    output.stdout[index + MARKER.len()..]
+        .split(|byte| *byte == 0)
+        .filter_map(|entry| {
+            let text = String::from_utf8_lossy(entry);
+            let (key, value) = text.split_once('=')?;
+            if !keep_shell_var(key) {
+                return None;
+            }
+            Some((key.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+fn keep_shell_var(key: &str) -> bool {
+    if key.is_empty() || key.contains("%%") || key.starts_with("BASH_FUNC_") {
+        return false;
+    }
+
+    !matches!(
+        key,
+        "PWD"
+            | "OLDPWD"
+            | "SHLVL"
+            | "_"
+            | "BASH_ENV"
+            | "ENV"
+            | "PROMPT_COMMAND"
+            | "PS1"
+            | "PS2"
+            | "PS4"
+            | "COLUMNS"
+            | "LINES"
+            | "TERM"
+            | "COLORTERM"
+            | "HISTFILE"
+            | "HISTCONTROL"
+            | "HISTIGNORE"
+            | "HISTSIZE"
+            | "HISTFILESIZE"
+            | "BASH_ARGC"
+            | "BASH_ARGV"
+            | "BASH_EXECUTION_STRING"
+            | "SHELLOPTS"
+            | "BASHOPTS"
+    )
 }
 
 fn read_env_file(cwd: &Path, file: &str, env: &mut std::collections::HashMap<String, String>) {

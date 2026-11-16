@@ -249,6 +249,9 @@ Keyboard shortcuts:
 ## How it works
 
 - Commands run as `/bin/bash -lc "<command>"` inside the configured folder.
+- At startup NodusForge imports the environment of an interactive login shell
+  once. A desktop launch therefore finds nvm/yarn/pyenv/dotnet on `PATH` just
+  like a terminal does. Explicit `env` and `envFile` values still win.
 - Each process gets its own process group. Stop signals the group, waits, then
   escalates to `SIGKILL` if needed.
 - Readiness is polled every 500 ms until `health.timeoutMs` expires. On
@@ -324,6 +327,12 @@ WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run desktop
 # or
 WEBKIT_DISABLE_COMPOSITING_MODE=1 npm run desktop
 ```
+
+**`yarn` / `node` / `dotnet` not found only in the installed app** — the GUI
+inherits a minimal desktop `PATH`. Since 0.1.1 NodusForge imports the
+interactive login-shell environment (including nvm/pyenv) before starting apps.
+Restart NodusForge after changing `~/.bashrc`, and confirm the tool is available
+in `bash -lic 'command -v yarn'`.
 
 **Port already in use** — NodusForge refuses to start a `tcp`-checked app when
 the port is bound and reports the holding process. Free the port or change the
