@@ -87,3 +87,91 @@ fn unquoted_value(raw: &str) -> String {
     raw[..end].trim_end().to_string()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_plain_and_exported_values() {
+        let env = parse("A=1\nexport B=two\nC=three\n");
+
+        assert_eq!(env["A"], "1");
+        assert_eq!(env["B"], "two");
+        assert_eq!(env["C"], "three");
+    }
+
+    #[test]
+    fn keeps_colons_and_urls() {
+        let env = parse("URL=http://localhost:42000/path?x=1\nTOKEN=a:b:c\n");
+
+        assert_eq!(env["URL"], "http://localhost:42000/path?x=1");
+        assert_eq!(env["TOKEN"], "a:b:c");
+    }
+
+    #[test]
+    fn skips_whole_line_comments() {
+        let env = parse("# heading\n  # indented\nA=1\n");
+
+        assert_eq!(env.len(), 1);
+        assert_eq!(env["A"], "1");
+    }
+
+    #[test]
+    fn inline_comment_requires_whitespace_before_hash() {
+        let env = parse("A=abc#def\nB=abc # trailing\nC=# only a comment\nD=   # comment\n");
+
+        assert_eq!(env["A"], "abc#def");
+        assert_eq!(env["B"], "abc");
+        assert_eq!(env["C"], "");
+        assert_eq!(env["D"], "");
+    }
+
+    #[test]
+    fn parses_quoted_values() {
+        let env = parse(concat!(
+            "A=\"frame-ancestors 'self' http://localhost:42000\"  # note\n",
+            "B='a # b: c'\n",
+            "C=\"line\\nbreak\"\n",
+            "D=\"escaped \\\"quote\\\"\"\n",
+            "E=`literal # value`\n",
+            "F=\"# not a comment\"\n",
+        ));
+
+        assert_eq!(env["A"], "frame-ancestors 'self' http://localhost:42000");
+        assert_eq!(env["B"], "a # b: c");
+        assert_eq!(env["C"], "line\nbreak");
+        assert_eq!(env["D"], "escaped \"quote\"");
+        assert_eq!(env["E"], "literal # value");
+        assert_eq!(env["F"], "# not a comment");
+    }
+
+    #[test]
+    fn handles_empty_values_and_whitespace() {
+        let env = parse("EMPTY=\nSPACED = value   \n");
+
+        assert_eq!(env["EMPTY"], "");
+        assert_eq!(env["SPACED"], "value");
+    }
+
+    #[test]
+    fn handles_crlf_lines() {
+        let env = parse("A=1\r\nB=2\r\n");
+
+        assert_eq!(env["A"], "1");
+        assert_eq!(env["B"], "2");
+    }
+
+    #[test]
+    fn ignores_malformed_lines() {
+        let env = parse("NO_EQUALS\n=orphan\nVALID=1\n");
+
+        assert_eq!(env.len(), 1);
+        assert_eq!(env["VALID"], "1");
+    }
+
+    #[test]
+    fn missing_file_is_empty() {
+        assert!(read(Path::new("/nonexistent/nodusforge-test.env")).is_empty());
+    }
+}
+
