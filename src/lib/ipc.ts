@@ -1,5 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppDraft, DetectResult, Settings, Snapshot } from "./types";
+import type {
+  AppDraft,
+  ContainersResult,
+  DetectResult,
+  GitRepoStatus,
+  Settings,
+  Snapshot,
+  ToolsStatus,
+} from "./types";
 
 export const ipc = {
   snapshot: () => invoke<Snapshot>("get_snapshot"),
@@ -22,6 +30,16 @@ export const ipc = {
   openFolder: (id: string) => invoke<void>("open_folder", { id }),
   openConfig: () => invoke<void>("open_config_file"),
   relaunch: () => invoke<void>("relaunch_app"),
+
+  toolsStatus: () => invoke<ToolsStatus>("get_tools_status"),
+  gitStatus: (id: string) => invoke<GitRepoStatus>("get_git_status", { id }),
+  switchGitBranch: (id: string, branch: string) =>
+    invoke<GitRepoStatus>("switch_git_branch", { id, branch }),
+
+  containers: () => invoke<ContainersResult>("list_containers"),
+  startContainer: (id: string) =>
+    invoke<void>("start_container", { id }),
+  stopContainer: (id: string) => invoke<void>("stop_container", { id }),
 
   detect: (path: string) => invoke<DetectResult>("detect_app_folder", { path }),
   saveApp: (draft: AppDraft) => invoke<Snapshot>("save_app", { draft }),

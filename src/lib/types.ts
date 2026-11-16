@@ -78,6 +78,52 @@ export interface ToastEvent {
   message: string;
 }
 
+export interface ToolStatus {
+  installed: boolean;
+  version?: string | null;
+  error?: string | null;
+}
+
+export interface DockerToolStatus extends ToolStatus {
+  daemonReachable: boolean;
+  daemonVersion?: string | null;
+}
+
+export interface ToolsStatus {
+  git: ToolStatus;
+  docker: DockerToolStatus;
+}
+
+export interface GitRepoStatus {
+  installed: boolean;
+  isRepo: boolean;
+  repoMarker: boolean;
+  root?: string | null;
+  branch?: string | null;
+  detached: boolean;
+  branches: string[];
+  error?: string | null;
+}
+
+export interface ContainerInfo {
+  id: string;
+  name: string;
+  image: string;
+  state: string;
+  status: string;
+  ports: string;
+  created: string;
+  command: string;
+}
+
+export interface ContainersResult {
+  installed: boolean;
+  daemonReachable: boolean;
+  version?: string | null;
+  error?: string | null;
+  containers: ContainerInfo[];
+}
+
 export interface DetectedApp {
   kind: "dotnet" | "vite" | string;
   name: string;

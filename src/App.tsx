@@ -9,6 +9,9 @@ import {
 
 import { ipc } from "./lib/ipc";
 import { useAppStore } from "./store/useAppStore";
+import { ActivityBar, type MainView } from "./components/ActivityBar";
+import { ContainersSidebar } from "./components/ContainersSidebar";
+import { ContainersView } from "./components/ContainersView";
 import { Sidebar } from "./components/Sidebar";
 import { AppHeader, type Tab } from "./components/AppHeader";
 import { LogView } from "./components/LogView";
@@ -41,6 +44,7 @@ export default function App() {
   const pushToast = useAppStore((state) => state.pushToast);
 
   const [tab, setTab] = useState<Tab>("logs");
+  const [view, setView] = useState<MainView>("apps");
 
   const app = selectedId ? apps[selectedId] : undefined;
 
@@ -91,9 +95,17 @@ export default function App() {
 
       if (key === "k") {
         event.preventDefault();
-        document.getElementById("nodusforge-search")?.focus();
+        document
+          .getElementById(
+            view === "apps"
+              ? "nodusforge-search"
+              : "nodusforge-container-search",
+          )
+          ?.focus();
         return;
       }
+
+      if (view !== "apps") return;
 
       const id = state.selectedId;
       if (!id) return;
@@ -129,7 +141,7 @@ export default function App() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [view]);
 
   const openConfig = async () => {
     try {
@@ -152,103 +164,118 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-canvas text-ink">
-      <Sidebar
-        onAddApp={() => setWizardOpen(true)}
+      <ActivityBar
+        view={view}
+        onChange={setView}
         onSettings={() => setSettingsOpen(true)}
       />
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        {configError && (
-          <div className="flex shrink-0 items-center gap-2 border-b border-danger/25 bg-danger/10 px-4 py-2">
-            <AlertTriangle size={13} className="shrink-0 text-danger" />
-            <span className="min-w-0 flex-1 truncate text-[11.5px] text-danger" title={configError}>
-              Config error: {configError}
-            </span>
-            <Button size="sm" variant="ghost" onClick={() => void reload()}>
-              <RefreshCw size={11} /> Retry
-            </Button>
-          </div>
-        )}
+      {view === "apps" ? (
+        <>
+          <Sidebar
+            onAddApp={() => setWizardOpen(true)}
+            onSettings={() => setSettingsOpen(true)}
+          />
 
-        {configDirty && (
-          <div className="flex shrink-0 items-center gap-2 border-b border-amber/25 bg-amber/10 px-4 py-2">
-            <RefreshCw size={12} className="shrink-0 text-amber" />
-            <span className="min-w-0 flex-1 truncate text-[11.5px] text-amber">
-              The config file changed on disk.
-            </span>
-            <Button size="sm" variant="ghost" onClick={() => void reload()}>
-              Reload
-            </Button>
-            <button
-              onClick={() => useAppStore.setState({ configDirty: false })}
-              className="text-[11px] text-muted hover:text-ink"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        {warnings.length > 0 && (
-          <div
-            className="flex shrink-0 items-center gap-2 border-b border-line bg-panel-2/40 px-4 py-1.5"
-            title={warnings.join("\n")}
-          >
-            <AlertTriangle size={11} className="shrink-0 text-amber/80" />
-            <span className="truncate text-[10.5px] text-muted">
-              {warnings.length} config warning{warnings.length === 1 ? "" : "s"}:{" "}
-              {warnings[0]}
-            </span>
-          </div>
-        )}
-
-        {app ? (
-          <>
-            <AppHeader app={app} tab={tab} onTab={setTab} />
-            <div className="min-h-0 flex-1">
-              {tab === "logs" && <LogView key={app.id} appId={app.id} />}
-              {tab === "details" && <DetailsTab app={app} />}
-              {tab === "config" && <ConfigTab appId={app.id} />}
-            </div>
-          </>
-        ) : (
-          <div className="grid min-h-0 flex-1 place-items-center p-10">
-            <div className="max-w-md text-center">
-              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-line bg-panel">
-                <LayoutGrid size={22} className="text-muted" />
+          <main className="flex min-w-0 flex-1 flex-col">
+            {configError && (
+              <div className="flex shrink-0 items-center gap-2 border-b border-danger/25 bg-danger/10 px-4 py-2">
+                <AlertTriangle size={13} className="shrink-0 text-danger" />
+                <span className="min-w-0 flex-1 truncate text-[11.5px] text-danger" title={configError}>
+                  Config error: {configError}
+                </span>
+                <Button size="sm" variant="ghost" onClick={() => void reload()}>
+                  <RefreshCw size={11} /> Retry
+                </Button>
               </div>
-              <h2 className="mt-4 text-[17px] font-semibold tracking-tight">
-                {Object.keys(apps).length === 0
-                  ? "No apps configured"
-                  : "Select an app"}
-              </h2>
-              <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">
-                {Object.keys(apps).length === 0
-                  ? "Add a .NET or Vite project and NodusForge will run it, watch its port and stream the logs. You can also write the YAML by hand."
-                  : "Pick an app from the sidebar to see its status and logs."}
-              </p>
+            )}
 
-              <div className="mt-5 flex items-center justify-center gap-2">
-                <Button
-                  variant="primary"
-                  onClick={() => setWizardOpen(true)}
+            {configDirty && (
+              <div className="flex shrink-0 items-center gap-2 border-b border-amber/25 bg-amber/10 px-4 py-2">
+                <RefreshCw size={12} className="shrink-0 text-amber" />
+                <span className="min-w-0 flex-1 truncate text-[11.5px] text-amber">
+                  The config file changed on disk.
+                </span>
+                <Button size="sm" variant="ghost" onClick={() => void reload()}>
+                  Reload
+                </Button>
+                <button
+                  onClick={() => useAppStore.setState({ configDirty: false })}
+                  className="text-[11px] text-muted hover:text-ink"
                 >
-                  <Plus size={13} /> Add app
-                </Button>
-                <Button variant="secondary" onClick={() => void openConfig()}>
-                  <FolderOpen size={13} /> Open config
-                </Button>
+                  Dismiss
+                </button>
               </div>
+            )}
 
-              <p
-                className="mt-4 truncate font-mono text-[10px] text-muted/70"
-                title={configPath}
+            {warnings.length > 0 && (
+              <div
+                className="flex shrink-0 items-center gap-2 border-b border-line bg-panel-2/40 px-4 py-1.5"
+                title={warnings.join("\n")}
               >
-                {configPath}
-              </p>
-            </div>
-          </div>
-        )}
-      </main>
+                <AlertTriangle size={11} className="shrink-0 text-amber/80" />
+                <span className="truncate text-[10.5px] text-muted">
+                  {warnings.length} config warning{warnings.length === 1 ? "" : "s"}:{" "}
+                  {warnings[0]}
+                </span>
+              </div>
+            )}
+
+            {app ? (
+              <>
+                <AppHeader app={app} tab={tab} onTab={setTab} />
+                <div className="min-h-0 flex-1">
+                  {tab === "logs" && <LogView key={app.id} appId={app.id} />}
+                  {tab === "details" && <DetailsTab app={app} />}
+                  {tab === "config" && <ConfigTab appId={app.id} />}
+                </div>
+              </>
+            ) : (
+              <div className="grid min-h-0 flex-1 place-items-center p-10">
+                <div className="max-w-md text-center">
+                  <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-line bg-panel">
+                    <LayoutGrid size={22} className="text-muted" />
+                  </div>
+                  <h2 className="mt-4 text-[17px] font-semibold tracking-tight">
+                    {Object.keys(apps).length === 0
+                      ? "No apps configured"
+                      : "Select an app"}
+                  </h2>
+                  <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">
+                    {Object.keys(apps).length === 0
+                      ? "Add a .NET or Vite project and NodusForge will run it, watch its port and stream the logs. You can also write the YAML by hand."
+                      : "Pick an app from the sidebar to see its status and logs."}
+                  </p>
+
+                  <div className="mt-5 flex items-center justify-center gap-2">
+                    <Button
+                      variant="primary"
+                      onClick={() => setWizardOpen(true)}
+                    >
+                      <Plus size={13} /> Add app
+                    </Button>
+                    <Button variant="secondary" onClick={() => void openConfig()}>
+                      <FolderOpen size={13} /> Open config
+                    </Button>
+                  </div>
+
+                  <p
+                    className="mt-4 truncate font-mono text-[10px] text-muted/70"
+                    title={configPath}
+                  >
+                    {configPath}
+                  </p>
+                </div>
+              </div>
+            )}
+          </main>
+        </>
+      ) : (
+        <>
+          <ContainersSidebar />
+          <ContainersView />
+        </>
+      )}
 
       <AddAppWizard />
       <SettingsDialog
