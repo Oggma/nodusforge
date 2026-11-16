@@ -561,20 +561,7 @@ fn failed_status(message: String) -> Status {
 fn read_env_file(cwd: &Path, file: &str, env: &mut std::collections::HashMap<String, String>) {
     let path = PathBuf::from(file);
     let path = if path.is_absolute() { path } else { cwd.join(path) };
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return;
-    };
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let line = line.strip_prefix("export ").unwrap_or(line);
-        if let Some((key, value)) = line.split_once('=') {
-            let value = value.trim().trim_matches('"').trim_matches('\'');
-            env.insert(key.trim().to_string(), value.to_string());
-        }
-    }
+    env.extend(crate::envfile::read(&path));
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

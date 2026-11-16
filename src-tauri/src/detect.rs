@@ -234,7 +234,7 @@ fn compose_candidate(compose: &Path, root: &Path) -> Option<DetectedApp> {
     let text = std::fs::read_to_string(compose).ok()?;
     let text = text.trim_start_matches('\u{feff}');
     let yaml: Value = serde_yaml_ng::from_str(text).ok()?;
-    let env = compose_env(dir);
+    let env = crate::envfile::read(&dir.join(".env"));
 
     let name = yaml
         .get("name")
@@ -282,31 +282,6 @@ fn compose_candidate(compose: &Path, root: &Path) -> Option<DetectedApp> {
         health,
         notes,
     })
-}
-
-fn compose_env(dir: &Path) -> HashMap<String, String> {
-    let Ok(text) = std::fs::read_to_string(dir.join(".env")) else {
-        return HashMap::new();
-    };
-
-    let mut env = HashMap::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let line = line.strip_prefix("export ").unwrap_or(line);
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        let key = key.trim();
-        if key.is_empty() {
-            continue;
-        }
-        let value = value.trim().trim_matches('"').trim_matches('\'');
-        env.insert(key.to_string(), value.to_string());
-    }
-    env
 }
 
 fn compose_port(yaml: &Value, env: &HashMap<String, String>) -> Option<u16> {

@@ -4,6 +4,7 @@ mod config;
 mod detect;
 mod diagnostics;
 mod docker;
+mod envfile;
 mod events;
 mod git;
 mod platform;
