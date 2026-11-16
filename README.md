@@ -12,6 +12,8 @@ dependency ordering, health-aware status and live colored logs.
 [![TypeScript](https://img.shields.io/badge/TypeScript-7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Rust](https://img.shields.io/badge/Rust-stable-000000?logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![Linux](https://img.shields.io/badge/Linux-Debian%20%2F%20Ubuntu-FCC624?logo=linux&logoColor=black)](#requirements)
+[![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white)](#requirements)
+[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-000000?logo=apple&logoColor=white)](#requirements)
 
 [![NodusForge screenshot](assets/screenshot.png)](assets/screenshot.png)
 
@@ -19,11 +21,15 @@ dependency ordering, health-aware status and live colored logs.
 
 ## What is NodusForge?
 
-NodusForge is a lightweight Linux desktop app for running a local development
-stack without keeping a dozen terminal tabs open. Each app is a YAML entry with
-a folder and a shell command. Click **Start**, and NodusForge supervises the
-process, waits for its port or health endpoint, and streams stdout/stderr with
-colors intact.
+NodusForge is a lightweight cross-platform desktop app for running a local
+development stack without keeping a dozen terminal tabs open. Each app is a YAML
+entry with a folder and a shell command. Click **Start**, and NodusForge
+supervises the process, waits for its port or health endpoint, and streams
+stdout/stderr with colors intact.
+
+Supported targets: Linux x86_64 (`.deb`), Windows 10/11 x64 (NSIS `.exe`) and
+macOS 11+ on Apple Silicon (`.dmg`/`.app`). Linux remains the primary
+development platform.
 
 It runs processes **natively on the host** — no container runtime or Compose
 file required.
@@ -54,94 +60,161 @@ file required.
   containers.
 - **ActivityBar** — switch between Apps, Containers and Settings from a compact
   left rail.
-- **Automatic updates** — installed `.deb` builds check GitHub Releases, verify
-  signed packages and can install updates in-app.
+- **Automatic updates** — installed builds check GitHub Releases, verify signed
+  packages and can install updates in-app.
 - **Tray integration** — Show/Quit menu, close-to-tray and optional
   start-on-login.
-- **Native packaging** — builds a Debian package with Tauri 2.
+- **Native packaging** — Tauri 2 bundles for Debian, Windows NSIS and macOS.
 
 ## Requirements
 
-- Linux Mint 22.x / Ubuntu 24.04 (other Debian-based distributions should work)
-- Node.js 20.19+ or 22.12+ with npm
-- Rust stable (1.90+; the updater plugin requires it)
-- GTK 3 and WebKitGTK 4.1 development headers
-- Whatever the managed apps need: .NET SDK, Go, Yarn, Python, etc.
-- Optional: `git` for the branch picker and `docker` with a reachable daemon
-  for the Containers view. Missing tools disable only those features.
+| Platform | Requirements |
+| --- | --- |
+| Linux | Linux Mint 22.x / Ubuntu 24.04 is the primary target. Node.js 20.19+ or 22.12+, Rust stable 1.90+, GTK 3, WebKitGTK 4.1 and libayatana-appindicator development headers, `dpkg`. |
+| Windows | Windows 10/11 x64. Node.js 20.19+ or 22.12+, Rust stable with the MSVC toolchain, Visual Studio 2022 C++ Build Tools and the Windows SDK. WebView2 is included with Windows 11. |
+| macOS | macOS 11+ on Apple Silicon. Xcode Command Line Tools, Node.js 20.19+ or 22.12+ and Rust stable. |
+| Any platform | Whatever the managed apps need: .NET SDK, Go, Yarn, Python, etc. Optional `git` for the branch picker and `docker` with a reachable daemon for the Containers view. |
 
-The one-time setup script installs the system packages and Rust:
+Install the build prerequisites:
 
 ```bash
+# Linux Debian/Ubuntu (needs sudo)
 bash scripts/install-deps.sh
-```
 
-It needs `sudo` for the apt step and only targets Debian/Ubuntu-based systems.
+# macOS (checks Xcode CLT, Node and Rust; --install runs supported installers)
+bash scripts/setup-macos.sh --install
+
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1 -Install
+```
 
 ## Run locally
 
 ```bash
 git clone <repository-url>
 cd nodusforge
-npm install
+npm ci
+```
+
+Linux:
+
+```bash
 npm run desktop
 ```
 
 `npm run desktop` loads the Rust toolchain, checks the GTK/WebKit
 dependencies, then starts Vite and the Tauri window.
 
-If `cargo` is not on your `PATH`:
+macOS and Windows:
+
+```bash
+npm run tauri dev
+```
+
+If `cargo` is not on your `PATH` on Linux:
 
 ```bash
 source "$HOME/.cargo/env"
 npm run tauri dev
 ```
 
-The config file is created on first launch:
+The config file is created on first launch at the platform-native location:
 
-```
-~/.config/nodusforge/config.yaml
-```
+| Platform | Config |
+| --- | --- |
+| Linux | `~/.config/nodusforge/config.yaml` |
+| Windows | `%APPDATA%\nodusforge\config.yaml` |
+| macOS | `~/Library/Application Support/nodusforge/config.yaml` |
 
-## Build and install
+## Build
 
-Build a Debian package:
+Build the native bundle on each target OS:
 
 ```bash
-npm run build
-npm run tauri build -- --bundles deb
+npm run build:app
 ```
 
-Bundles land in:
+`build:app` runs the checks, selects the platform bundle, builds it and copies
+the unsigned artifacts plus a manifest fragment into:
 
 ```
-src-tauri/target/release/bundle/deb/
+release-assets/v<version>/platforms/<platform>/
 ```
 
-For an updater-enabled release, set the signing key first:
+Tauri cannot reliably cross-build macOS or Windows from Linux. Build on each
+target OS, a matching VM, or use the optional GitHub Actions workflow.
+
+### Optional GitHub Actions build
+
+Run **Actions → Build artifacts → Run workflow** and choose `all`, `linux`,
+`windows` or `macos`. The workflow only builds and uploads artifacts; it does
+not sign, tag or publish. Download the artifacts from the run page or with:
+
+```bash
+gh run download <run-id> -D release-assets/v<version>/platforms
+```
+
+The workflow is optional. Local builds on the three operating systems use the
+same artifact layout.
+
+## Sign and release
+
+Updater signing happens only on the Linux workstation. The Windows/macOS build
+machines and GitHub Actions never receive the private key.
+
+1. Build Linux, Windows and macOS artifacts.
+2. Copy or download all platform directories into
+   `release-assets/v<version>/platforms/{linux,windows,macos}` on Linux.
+3. Create `release-assets/v<version>/RELEASE_NOTES.md`.
+4. Sign the updater artifacts on Linux:
 
 ```bash
 export TAURI_SIGNING_PRIVATE_KEY="$HOME/.tauri/myapp.key"
-# export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="..." # only if the key is encrypted
-npm run release
+# export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="..." # only if encrypted
+npm run release:sign
 ```
 
-`npm run release` runs the checks, builds the signed `.deb`, and verifies that
-the `.deb.sig` exists. Then create `release-assets/v<version>/RELEASE_NOTES.md`
-and run `npm run release:manifest` to generate `latest.json`.
-
-Install:
+5. Generate `latest.json`, checksums and the release staging directory:
 
 ```bash
-sudo dpkg -i src-tauri/target/release/bundle/deb/*.deb
+npm run release:stage
+```
+
+Staging requires Linux, Windows and macOS by default. For a local partial test,
+pass `-- --require-platforms linux`.
+
+6. Commit and tag the version-bump commit, push it, then publish:
+
+```bash
+npm run release:publish
+```
+
+`release:publish` requires a clean tree and a tag at `HEAD`; it uses the GitHub
+CLI and marks the release **Latest**.
+
+### Install
+
+Linux:
+
+```bash
+sudo dpkg -i release-assets/v<version>/platforms/linux/NodusForge_<version>_amd64.deb
 sudo apt-get -f install   # only if dependencies are missing
 ```
 
-Launch **NodusForge** from the application menu, or run `nodusforge`.
+Windows: run `NodusForge_<version>_x64-setup.exe`.
 
-AppImage output is also supported (`--bundles appimage`), but the `.deb` is
-recommended on Mint/Ubuntu: tray icons and autostart rely on a proper desktop
-entry.
+macOS: open `NodusForge_<version>_aarch64.dmg` and drag **NodusForge** into
+**Applications**.
+
+Windows and macOS builds are currently unsigned. Expect SmartScreen or
+Gatekeeper warnings. On macOS, an unsigned first launch may need:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/NodusForge.app
+```
+
+The first Windows/macOS `.exe`/`.dmg` install is manual. In-app updates start
+with the next release, because no earlier native build exists.
 
 ## Configuration
 
@@ -150,7 +223,16 @@ Config lookup order:
 1. `--config <path>`
 2. `$NODUSFORGE_CONFIG`
 3. `./nodusforge.yaml` in the launch directory
-4. `~/.config/nodusforge/config.yaml`
+4. platform-native config:
+
+| Platform | Path |
+| --- | --- |
+| Linux | `~/.config/nodusforge/config.yaml` |
+| Windows | `%APPDATA%\nodusforge\config.yaml` |
+| macOS | `~/Library/Application Support/nodusforge/config.yaml` |
+
+Paths support `~` and `$VAR` on every platform. Windows additionally supports
+`%VAR%`.
 
 ### Example
 
@@ -228,14 +310,14 @@ the installed app, replace it with an absolute or `~/...` path.
 | `name` | no | Display name; defaults to `id`. |
 | `group` | no | Sidebar group (`groups:` entry). |
 | `cwd` | yes | Working directory; `~` and `$VARS` are expanded. |
-| `command` | yes | Shell command, run through `/bin/bash -lc`. |
+| `command` | yes | Shell command, run through the platform shell (`/bin/bash`/login shell/`cmd.exe`). |
 | `env` | no | Extra environment variables. |
 | `envFile` | no | dotenv file relative to `cwd`; `env` wins on conflicts. |
 | `url` | no | Enables the **Open** button and HTTP health. |
 | `health` | no | `{ type: none \| tcp \| http, port, path, timeoutMs }`. |
 | `dependsOn` | no | Apps that must be healthy first; cycles are rejected. |
 | `autoStart` | no | Start when NodusForge launches. |
-| `stopSignal` | no | `SIGTERM` (default) or `SIGINT`. |
+| `stopSignal` | no | Unix only: `SIGTERM` (default) or `SIGINT`. Ignored on Windows, which terminates the Job Object. |
 | `stopTimeoutMs` | no | Grace period before escalating to `SIGKILL` (default 10000). |
 
 `health.type: tcp` waits for a connection on the port; `http` sends a GET and
@@ -278,12 +360,13 @@ include:
 - **Updates** — **Settings → Updates** has **Check now** and the automatic-check
   toggle. When a new version is available, the dialog offers **Update now**,
   **Later**, **View release**, and a link to disable automatic checks. Installing
-  the `.deb` may ask for your administrator password; managed apps stop and
-  NodusForge restarts.
+  the update may ask for permission; managed apps stop and NodusForge restarts
+  (Windows uses the NSIS installer).
 
-Automatic updates were introduced in 0.2.0; users on 0.1.1 must install a 0.2.x
-release manually once. 0.2.1 is the first release delivered through the updater
-to 0.2.0.
+Automatic updates were introduced in 0.2.0. Linux users on 0.1.1 must install a
+0.2.x or newer release manually once. 0.2.1 was the first release delivered
+through the updater. 0.4.0 is the first Windows/macOS native build, so those
+platforms also need one manual install before in-app updates start.
 
 Keyboard shortcuts:
 
@@ -297,40 +380,45 @@ Keyboard shortcuts:
 
 ## How it works
 
-- Commands run as `/bin/bash -lc "<command>"` inside the configured folder.
-- At startup NodusForge imports the environment of an interactive login shell
-  once. A desktop launch therefore finds nvm/yarn/pyenv/dotnet on `PATH` just
-  like a terminal does. Explicit `env` and `envFile` values still win.
-- Each process gets its own process group. Stop signals the group, waits, then
-  escalates to `SIGKILL` if needed.
+- Linux runs commands through `/bin/bash -lc`; macOS uses the user's login
+  shell; Windows uses `%COMSPEC%`/`cmd.exe` with `/C`.
+- On Linux and macOS, NodusForge imports the environment of an interactive
+  login shell once, so nvm/Homebrew/pyenv/dotnet resolve like they do in a
+  terminal. Windows inherits the Explorer process environment. Explicit `env`
+  and `envFile` values still win.
+- Linux and macOS use process groups and SIGINT/SIGTERM, escalating to SIGKILL.
+  Windows uses Job Objects with kill-on-close to terminate the whole process
+  tree. `stopSignal` is accepted but ignored on Windows.
 - Readiness is polled every 500 ms until `health.timeoutMs` expires. On
-  timeout the group is stopped and the app is marked `failed`.
+  timeout the process tree is stopped and the app is marked `failed`.
 - Logs are batched every 50 ms to keep the UI responsive under heavy output.
   The in-memory buffer defaults to 5,000 lines per app.
-- Live process groups are recorded in
-  `~/.local/state/nodusforge/state.json`; after a crash, NodusForge terminates
-  groups whose command line still matches on the next launch.
-- Optional log files live in `~/.local/state/nodusforge/logs/`.
-- Git and Docker commands use the same imported login-shell environment, with
-  timeouts and non-interactive prompts. Repository overrides such as `GIT_DIR`
-  are cleared before Git runs; Docker respects `DOCKER_HOST` and
-  `DOCKER_CONTEXT` from that environment.
+- Live process state and logs use native local-data locations:
+  - Linux: `~/.local/state/nodusforge/`
+  - Windows: `%LOCALAPPDATA%\nodusforge\`
+  - macOS: `~/Library/Application Support/nodusforge/`
+- Git and Docker commands use the same environment, with timeouts and
+  non-interactive prompts. Repository overrides such as `GIT_DIR` are cleared
+  before Git runs; Docker respects `DOCKER_HOST` and `DOCKER_CONTEXT`.
 
 ## Project structure
 
 ```
 assets/                 assets
 examples/simple-logger/ Runnable demo app that prints logs
-scripts/                install-deps.sh, desktop dev wrapper
+scripts/                setup, build, sign and release scripts
 src/                    React renderer (components, store, IPC)
 src-tauri/              Rust backend
   src/config.rs         YAML model, includes, validation, watcher
-  src/process/          lifecycle, process groups, health, logs
+  src/platform/         shell, process, port and environment helpers
+  src/process/          lifecycle, health, logs
   src/detect.rs         .NET / Vite detection for the wizard
-  src/tools.rs          login-shell environment and tool execution
+  src/tools.rs          shared tool runtime
   src/git.rs            Git repository and branch operations
   src/docker.rs         Docker container listing and start/stop
   src/tray.rs           tray menu and window toggling
+  tauri.*.conf.json     per-platform bundle targets
+.github/workflows/      optional build-only artifact workflow
 nodusforge.example.yaml Example configuration
 ```
 
@@ -384,19 +472,20 @@ WEBKIT_DISABLE_DMABUF_RENDERER=1 npm run desktop
 WEBKIT_DISABLE_COMPOSITING_MODE=1 npm run desktop
 ```
 
-**`yarn` / `node` / `dotnet` not found only in the installed app** — the GUI
-inherits a minimal desktop `PATH`. Since 0.1.1 NodusForge imports the
-interactive login-shell environment (including nvm/pyenv) before starting apps.
-Restart NodusForge after changing `~/.bashrc`, and confirm the tool is available
-in `bash -lic 'command -v yarn'`.
+**`yarn` / `node` / `dotnet` not found only in the installed app** — on Linux
+and macOS the GUI inherits a minimal desktop `PATH`. NodusForge imports the
+interactive login-shell environment (including nvm/pyenv/Homebrew) before
+starting apps. Restart NodusForge after changing your shell profile, and confirm
+the tool is available from an interactive login shell. On Windows, the app uses
+the Explorer process `PATH`; sign out/in or restart after changing it.
 
 **Update check fails or the update will not install** — automatic updates were
-introduced in 0.2.0, so 0.1.1 users must install a 0.2.x release manually once.
-0.2.1 is the first update delivered through the updater to 0.2.0. The latest
-GitHub release must contain `latest.json` and a signed `.deb` (`.sig`); dev
-builds skip automatic checks. Installing the `.deb` may ask for your
-administrator password. If the check still fails, confirm the release is marked
-**Latest**, not a draft or pre-release.
+introduced in 0.2.0. The latest GitHub release must contain `latest.json`, the
+platform asset and its `.sig`; dev builds skip automatic checks. Linux may ask
+for your administrator password to install the `.deb`. Windows and macOS builds
+are currently unsigned, so SmartScreen or Gatekeeper may ask for confirmation.
+If the check still fails, confirm the release is marked **Latest**, contains
+all platforms, and the tag matches the version.
 
 **Branch picker is missing** — the app folder must be inside a Git work tree,
 and `git` must be reachable from the login-shell environment. Check
@@ -416,19 +505,34 @@ use `sudo` for Docker commands.
 the port is bound and reports the holding process. Free the port or change the
 health `port`.
 
-**Tray icon missing** — install `libayatana-appindicator3-1`; AppImage builds
-often lack tray integration, so prefer the `.deb`.
+**Tray icon missing on Linux** — install `libayatana-appindicator3-1`. GNOME
+may need an AppIndicator extension; Cinnamon supports it natively.
+
+**Windows installer or update is blocked** — builds are unsigned for now. Allow
+the installer through SmartScreen. Per-user NSIS installation avoids the
+administrator prompt.
+
+**macOS says the app is damaged or cannot be opened** — builds are unsigned and
+not notarized. Allow the app in **System Settings → Privacy & Security**, or
+remove the quarantine flag:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/NodusForge.app
+```
 
 ## Limitations
 
 - No PTY: apps use piped stdio. Interactive prompts are unsupported.
 - HTTPS health checks fall back to a TCP reachability probe.
 - Saving from the UI re-serializes the YAML file and drops comments.
-- In-app updates are available for installed `.deb` builds; 0.1.1 users must
-  install 0.2.x manually once.
-- Linux only for now.
+- macOS is Apple Silicon arm64 only; Windows is x64 only.
+- Windows/macOS builds are unsigned and not notarized. Expect SmartScreen and
+  Gatekeeper warnings; automated update testing on macOS is test-only.
+- `stopSignal` is Unix-only. Windows stops the Job Object instead.
 - Git support covers branch listing and switching only. Fetch/pull/push,
   commits and remote-branch management stay in your terminal.
 - Docker support covers listing and start/stop only. There is no Compose project
   management, container creation, image management, logs or exec view.
+- Docker must be available through the native platform CLI. WSL-only Docker
+  without Windows CLI integration is not detected.
 - No auto-restart policy or automatic branch-switch restart.

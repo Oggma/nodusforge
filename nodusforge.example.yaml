@@ -1,8 +1,10 @@
 # NodusForge example configuration.
 #
-# Copy this file to ~/.config/nodusforge/config.yaml, or start NodusForge and
-# use "+ Add app" to generate entries. Paths support ~ and $VARS; commands run
-# through /bin/bash -lc with `cwd` as the working directory.
+# Copy this file to the platform config location (see README.md), or start
+# NodusForge and use "+ Add app" to generate entries. Paths support ~ and
+# $VARS, plus %VARS% on Windows. Commands run through the platform shell with
+# `cwd` as the working directory: /bin/bash on Linux, the login shell on macOS,
+# and cmd.exe on Windows.
 
 version: 1
 
