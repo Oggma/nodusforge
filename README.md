@@ -52,7 +52,8 @@ file required.
 - **Live logs** — xterm.js view with ANSI colors, follow-tail, search, copy,
   download, a bounded in-memory buffer and optional persistence to disk.
 - **Add-app wizard** — detects .NET projects (including `launchSettings.json`
-  ports) and Vite projects (npm/pnpm/yarn/bun).
+  ports), Vite and other Node projects (npm/pnpm/yarn/bun), Go and Python
+  (Django) projects.
 - **Git branch switching** — the app header shows a branch picker when the app
   folder belongs to a Git repository. Git remains optional.
 - **Docker containers** — an optional Containers view lists local containers,
@@ -430,7 +431,7 @@ src-tauri/              Rust backend
   src/config.rs         YAML model, includes, validation, watcher
   src/platform/         shell, process, port and environment helpers
   src/process/          lifecycle, health, logs
-  src/detect.rs         .NET / Vite detection for the wizard
+  src/detect.rs         .NET / Node / Go / Python / Compose detection
   src/tools.rs          shared tool runtime
   src/git.rs            Git repository and branch operations
   src/docker.rs         Docker container listing and start/stop
