@@ -128,7 +128,7 @@ export interface ContainersResult {
 }
 
 export interface DetectedApp {
-  kind: "dotnet" | "vite" | string;
+  kind: "dotnet" | "vite" | "compose" | "node" | "go" | "python" | string;
   name: string;
   cwd: string;
   command: string;

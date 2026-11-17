@@ -352,6 +352,21 @@ export function AddAppWizard() {
                 with vite, using npm/pnpm/yarn/bun based on the lockfile.
               </li>
               <li>
+                <span className="text-ink/80">Node</span> — package.json with a
+                dev/start/serve script; port from the script or <code className="font-mono">PORT</code> in .env.
+              </li>
+              <li>
+                <span className="text-ink/80">Go</span> — go.mod, running{' '}
+                <code className="font-mono">go run .</code> or{' '}
+                <code className="font-mono">go run ./...</code>.
+              </li>
+              <li>
+                <span className="text-ink/80">Python</span> — Django
+                (<code className="font-mono">manage.py</code>, uv when available)
+                or a root-level <code className="font-mono">app.py</code>/
+                <code className="font-mono">main.py</code>.
+              </li>
+              <li>
                 Ports are optional; a TCP health check is added when one is found.
               </li>
             </ul>

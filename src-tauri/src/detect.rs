@@ -30,6 +30,8 @@ struct Files {
     csproj: Vec<PathBuf>,
     package_json: Vec<PathBuf>,
     compose: Vec<PathBuf>,
+    go_mod: Vec<PathBuf>,
+    python_entry: Vec<PathBuf>,
 }
 
 pub fn detect(raw_path: &str) -> Result<DetectResult, String> {
@@ -42,6 +44,8 @@ pub fn detect(raw_path: &str) -> Result<DetectResult, String> {
         csproj: Vec::new(),
         package_json: Vec::new(),
         compose: Vec::new(),
+        go_mod: Vec::new(),
+        python_entry: Vec::new(),
     };
     walk(&root, 0, &mut files);
 
@@ -59,8 +63,36 @@ pub fn detect(raw_path: &str) -> Result<DetectResult, String> {
         candidates.push(dotnet_candidate(&root, &project, files.csproj.len()));
     }
 
-    for package in files.package_json.iter().take(3) {
+    let mut packages = files.package_json.clone();
+    packages.sort_by_key(|path| path.parent() != Some(root.as_path()));
+
+    for package in packages.iter().take(3) {
         if let Some(candidate) = vite_candidate(package) {
+            candidates.push(candidate);
+            break;
+        }
+    }
+
+    let mut node_count = 0;
+    for package in packages.iter().take(3) {
+        if node_count >= 2 {
+            break;
+        }
+        if let Some(candidate) = node_candidate(package) {
+            candidates.push(candidate);
+            node_count += 1;
+        }
+    }
+
+    for go_mod in files.go_mod.iter().take(2) {
+        if let Some(candidate) = go_candidate(go_mod) {
+            candidates.push(candidate);
+            break;
+        }
+    }
+
+    for entry in files.python_entry.iter().take(4) {
+        if let Some(candidate) = python_candidate(entry, &root) {
             candidates.push(candidate);
             break;
         }
@@ -110,6 +142,8 @@ fn walk(dir: &Path, depth: usize, files: &mut Files) {
             "docker-compose.yml" | "docker-compose.yaml" | "compose.yml" | "compose.yaml" => {
                 files.compose.push(path)
             }
+            "go.mod" => files.go_mod.push(path),
+            "manage.py" | "app.py" | "main.py" => files.python_entry.push(path),
             _ => {}
         }
     }
@@ -357,14 +391,8 @@ fn resolve_compose_value(value: &str, env: &HashMap<String, String>) -> String {
     result
 }
 
-fn vite_candidate(package_json: &Path) -> Option<DetectedApp> {
-    let dir = package_json.parent()?;
-    let text = std::fs::read_to_string(package_json).ok()?;
-    let text = text.trim_start_matches('\u{feff}');
-    let json: Value = serde_json::from_str(text).ok()?;
-
-    let has_vite = json
-        .get("devDependencies")
+fn has_vite_dependency(json: &Value) -> bool {
+    json.get("devDependencies")
         .and_then(|v| v.get("vite"))
         .is_some()
         || json
@@ -376,9 +404,28 @@ fn vite_candidate(package_json: &Path) -> Option<DetectedApp> {
             .and_then(|v| v.get("dev"))
             .and_then(|v| v.as_str())
             .map(|script| script.contains("vite"))
-            .unwrap_or(false);
+            .unwrap_or(false)
+}
 
-    if !has_vite {
+fn package_runner(dir: &Path) -> &'static str {
+    if dir.join("pnpm-lock.yaml").exists() {
+        "pnpm"
+    } else if dir.join("yarn.lock").exists() {
+        "yarn"
+    } else if dir.join("bun.lockb").exists() || dir.join("bun.lock").exists() {
+        "bun"
+    } else {
+        "npm"
+    }
+}
+
+fn vite_candidate(package_json: &Path) -> Option<DetectedApp> {
+    let dir = package_json.parent()?;
+    let text = std::fs::read_to_string(package_json).ok()?;
+    let text = text.trim_start_matches('\u{feff}');
+    let json: Value = serde_json::from_str(text).ok()?;
+
+    if !has_vite_dependency(&json) {
         return None;
     }
 
@@ -393,14 +440,12 @@ fn vite_candidate(package_json: &Path) -> Option<DetectedApp> {
         })
         .unwrap_or_else(|| "vite-app".into());
 
-    let (runner, command) = if dir.join("pnpm-lock.yaml").exists() {
-        ("pnpm", "pnpm dev".to_string())
-    } else if dir.join("yarn.lock").exists() {
-        ("yarn", "yarn dev".to_string())
-    } else if dir.join("bun.lockb").exists() || dir.join("bun.lock").exists() {
-        ("bun", "bun run dev".to_string())
-    } else {
-        ("npm", "npm run dev".to_string())
+    let runner = package_runner(dir);
+    let command = match runner {
+        "pnpm" => "pnpm dev".to_string(),
+        "yarn" => "yarn dev".to_string(),
+        "bun" => "bun run dev".to_string(),
+        _ => "npm run dev".to_string(),
     };
 
     let port = vite_port(dir).unwrap_or(5173);
@@ -420,6 +465,322 @@ fn vite_candidate(package_json: &Path) -> Option<DetectedApp> {
         },
         notes,
     })
+}
+
+fn node_candidate(package_json: &Path) -> Option<DetectedApp> {
+    let dir = package_json.parent()?;
+    let text = std::fs::read_to_string(package_json).ok()?;
+    let text = text.trim_start_matches('\u{feff}');
+    let json: Value = serde_json::from_str(text).ok()?;
+
+    if has_vite_dependency(&json) {
+        return None;
+    }
+    let scripts = json.get("scripts").and_then(Value::as_object)?;
+    let script = ["dev", "start", "serve"]
+        .into_iter()
+        .find(|name| scripts.contains_key(*name))?;
+    let script_text = scripts.get(script).and_then(Value::as_str).unwrap_or("");
+
+    let package_name = json
+        .get("name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| dir.file_name().map(|s| s.to_string_lossy().to_string()))
+        .unwrap_or_else(|| "node-app".into());
+
+    let runner = package_runner(dir);
+    let base_command = match runner {
+        "pnpm" => format!("pnpm {script}"),
+        "yarn" => format!("yarn {script}"),
+        "bun" => format!("bun run {script}"),
+        _ => format!("npm run {script}"),
+    };
+
+    let port = script_port(script_text).or_else(|| env_port(dir));
+    let health = match port {
+        Some(port) => Health {
+            kind: HealthKind::Tcp,
+            port: Some(port),
+            timeout_ms: 120_000,
+            ..Health::default()
+        },
+        None => Health {
+            timeout_ms: 120_000,
+            ..Health::default()
+        },
+    };
+
+    let notes = match port {
+        Some(port) => format!(
+            "Detected Node project using {runner} (`{base_command}`); using port {port}."
+        ),
+        None => format!(
+            "Detected Node project using {runner} (`{base_command}`); no port found, so health is not checked."
+        ),
+    };
+
+    Some(DetectedApp {
+        kind: "node".into(),
+        name: package_name,
+        cwd: dir.to_string_lossy().to_string(),
+        command: base_command,
+        url: port.map(|port| format!("http://localhost:{port}")),
+        health,
+        notes,
+    })
+}
+
+fn go_candidate(go_mod: &Path) -> Option<DetectedApp> {
+    let dir = go_mod.parent()?;
+    let text = std::fs::read_to_string(go_mod).ok()?;
+    let module = text.lines().find_map(|line| {
+        line.trim().strip_prefix("module ").map(str::trim)
+    })?;
+    let name = module
+        .rsplit('/')
+        .next()
+        .filter(|value| !value.is_empty())
+        .unwrap_or("go-app")
+        .to_string();
+
+    let command = if dir.join("main.go").exists() {
+        "go run ."
+    } else {
+        "go run ./..."
+    };
+    let port = env_port(dir);
+    let health = match port {
+        Some(port) => Health {
+            kind: HealthKind::Tcp,
+            port: Some(port),
+            timeout_ms: 120_000,
+            ..Health::default()
+        },
+        None => Health {
+            timeout_ms: 120_000,
+            ..Health::default()
+        },
+    };
+
+    let mut notes = format!("Detected Go module `{module}`; starting with `{command}`.");
+    if command == "go run ./..." {
+        notes.push_str(" Edit the command if the module has several main packages.");
+    }
+    match port {
+        Some(port) => notes.push_str(&format!(" Using port {port} from .env for health.")),
+        None => notes.push_str(" No port found in .env, so health is not checked."),
+    }
+
+    Some(DetectedApp {
+        kind: "go".into(),
+        name,
+        cwd: dir.to_string_lossy().to_string(),
+        command: command.into(),
+        url: port.map(|port| format!("http://localhost:{port}")),
+        health,
+        notes,
+    })
+}
+
+fn python_candidate(entry: &Path, root: &Path) -> Option<DetectedApp> {
+    let dir = entry.parent()?;
+    if dir != root {
+        return None;
+    }
+    let file_name = entry.file_name()?.to_string_lossy().to_string();
+
+    if file_name != "manage.py" {
+        let has_dependency_file = ["requirements.txt", "pyproject.toml", "Pipfile", "setup.py"]
+            .iter()
+            .any(|name| dir.join(name).exists());
+        if !has_dependency_file {
+            return None;
+        }
+    }
+
+    let name = dir
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| "python-app".into());
+    let uv = dir.join("uv.lock").exists();
+
+    let (base_command, port) = if file_name == "manage.py" {
+        let port = env_port(dir).unwrap_or(8000);
+        (format!("python manage.py runserver {port}"), Some(port))
+    } else {
+        let port = env_port(dir);
+        (format!("python {file_name}"), port)
+    };
+    let command = if uv {
+        format!("uv run {base_command}")
+    } else {
+        base_command
+    };
+
+    let health = match port {
+        Some(port) => Health {
+            kind: HealthKind::Tcp,
+            port: Some(port),
+            timeout_ms: 120_000,
+            ..Health::default()
+        },
+        None => Health {
+            timeout_ms: 120_000,
+            ..Health::default()
+        },
+    };
+
+    let notes = if file_name == "manage.py" {
+        format!("Detected Django project; starting with `{command}`.")
+    } else {
+        format!(
+            "Detected Python entry point {file_name}; starting with `{command}`. Verify the command starts a server."
+        )
+    };
+
+    Some(DetectedApp {
+        kind: "python".into(),
+        name,
+        cwd: dir.to_string_lossy().to_string(),
+        command,
+        url: port.map(|port| format!("http://localhost:{port}")),
+        health,
+        notes,
+    })
+}
+
+fn script_port(script: &str) -> Option<u16> {
+    let tokens: Vec<&str> = script.split_whitespace().collect();
+    for (index, token) in tokens.iter().enumerate() {
+        let value = if let Some(rest) = token.strip_prefix("--port=") {
+            rest
+        } else if let Some(rest) = token.strip_prefix("-p=") {
+            rest
+        } else if *token == "--port" || *token == "-p" {
+            tokens.get(index + 1).copied().unwrap_or("")
+        } else {
+            continue;
+        };
+        if let Ok(port) = value.trim_matches('"').parse::<u16>() {
+            if port > 0 {
+                return Some(port);
+            }
+        }
+    }
+    None
+}
+
+fn env_port(dir: &Path) -> Option<u16> {
+    crate::envfile::read(&dir.join(".env"))
+        .get("PORT")
+        .and_then(|value| value.trim().parse::<u16>().ok())
+        .filter(|port| *port > 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn temp_dir(label: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "nodusforge-detect-{}-{}",
+            label,
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn parses_script_ports() {
+        assert_eq!(script_port("vite --port 4173"), Some(4173));
+        assert_eq!(script_port("next dev -p 3005"), Some(3005));
+        assert_eq!(script_port("serve --port=5000"), Some(5000));
+        assert_eq!(script_port("node server.js"), None);
+        assert_eq!(script_port("vite --host"), None);
+    }
+
+    #[test]
+    fn detects_node_project() {
+        let dir = temp_dir("node");
+        fs::write(
+            dir.join("package.json"),
+            r#"{"name":"api","scripts":{"start":"node server.js --port 4000"}}"#,
+        )
+        .unwrap();
+
+        let candidate = node_candidate(&dir.join("package.json")).unwrap();
+        assert_eq!(candidate.kind, "node");
+        assert_eq!(candidate.name, "api");
+        assert_eq!(candidate.command, "npm run start");
+        assert_eq!(candidate.health.port, Some(4000));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn node_port_falls_back_to_env() {
+        let dir = temp_dir("node-env");
+        fs::write(
+            dir.join("package.json"),
+            r#"{"scripts":{"dev":"next dev"}}"#,
+        )
+        .unwrap();
+        fs::write(dir.join("pnpm-lock.yaml"), "").unwrap();
+        fs::write(dir.join(".env"), "PORT=4321\n").unwrap();
+
+        let candidate = node_candidate(&dir.join("package.json")).unwrap();
+        assert_eq!(candidate.command, "pnpm dev");
+        assert_eq!(candidate.health.port, Some(4321));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn skips_node_without_scripts() {
+        let dir = temp_dir("node-lib");
+        fs::write(dir.join("package.json"), r#"{"name":"lib"}"#).unwrap();
+
+        assert!(node_candidate(&dir.join("package.json")).is_none());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn detects_go_module() {
+        let dir = temp_dir("go");
+        fs::write(dir.join("go.mod"), "module example.com/team/svc\n\ngo 1.22\n").unwrap();
+        fs::write(dir.join("main.go"), "package main\n").unwrap();
+
+        let candidate = go_candidate(&dir.join("go.mod")).unwrap();
+        assert_eq!(candidate.kind, "go");
+        assert_eq!(candidate.name, "svc");
+        assert_eq!(candidate.command, "go run .");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn detects_django_project() {
+        let dir = temp_dir("django");
+        fs::write(dir.join("manage.py"), "").unwrap();
+        fs::write(dir.join("uv.lock"), "").unwrap();
+
+        let candidate = python_candidate(&dir.join("manage.py"), &dir).unwrap();
+        assert_eq!(candidate.kind, "python");
+        assert_eq!(candidate.command, "uv run python manage.py runserver 8000");
+        assert_eq!(candidate.health.port, Some(8000));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn python_entry_requires_dependency_file() {
+        let dir = temp_dir("py-orphan");
+        fs::write(dir.join("main.py"), "print('hi')\n").unwrap();
+
+        assert!(python_candidate(&dir.join("main.py"), &dir).is_none());
+        fs::remove_dir_all(dir).unwrap();
+    }
 }
 
 fn vite_port(dir: &Path) -> Option<u16> {
@@ -443,3 +804,4 @@ fn vite_port(dir: &Path) -> Option<u16> {
     }
     None
 }
+
